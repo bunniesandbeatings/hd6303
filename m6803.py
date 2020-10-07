@@ -15,37 +15,42 @@ from binaryninja.enums import (BranchType, InstructionTextTokenType,
 from binaryninja import range
 
 
-InstructionNames = [
-	None, None, None, None, None, None, None, None,  # 0x00
-	None, None, None, None, None, None, None, None,  # 0x08
-	None, None, None, None, None, None, None, None,  # 0x10
-	None, None, None, None, None, None, None, None,  # 0x18
-	None, None, None, None, None, None, None, None,  # 0x20
-	None, None, None, None, None, None, None, None,  # 0x28
-	None, None, None, None, None, None, None, None,  # 0x30
-	None, None, None, None, None, None, None, None,  # 0x38
-	None, None, None, None, None, None, None, None,  # 0x40
-	None, None, None, None, None, None, None, None,  # 0x48
-	None, None, None, None, None, None, None, None,  # 0x50
-	None, None, None, None, None, None, None, None,  # 0x58
-	None, None, None, None, None, None, None, None,  # 0x60
-	None, None, None, None, None, None, None, None,  # 0x68
-	None, None, None, None, None, None, None, None,  # 0x70
-	None, None, None, None, None, None, None, None,  # 0x78
-	None, None, None, None, None, None, None, None,  # 0x80
-	None, None, None, None, None, None, None, None,  # 0x88
-	None, None, None, None, None, None, None, None,  # 0xa0
-	None, None, None, None, None, None, None, None,  # 0xa8
-	None, None, None, None, None, None, None, None,  # 0xb0
-	None, None, None, None, None, None, None, None,  # 0xb8
-	None, None, None, None, None, None, None, None,  # 0xc0
-	None, None, None, None, None, None, None, None,  # 0xc8
-	None, None, None, None, None, None, None, None,  # 0xd0
-	None, None, None, None, None, None, None, None,  # 0xd8
-	None, None, None, None, None, None, None, None,  # 0xe0
-	None, None, None, None, None, None, None, None,  # 0xe8
-	None, None, None, None, None, None, None, None,  # 0xf0
-	None, None, None, None, None, None, None, None,  # 0xf8
+Instructions = [
+	None,   "nop",   None,    None,    "lsrd",  "asld",  "tap",   "tpa",   # 0x00
+	"inx",  "dex",   "clv",   "sev",   "clc",   "sec",   "cli",   "sei",   # 0x08
+	"sba",  "cba",   None,    None,    None,    None,    "tab",   "tba",   # 0x10
+	None,   "daa",   None,    "aba",   None,    None,    None,    None,    # 0x18
+	"bra",  "brn",   "bhi",   "bls",   "bcc",   "bcs",   "bne",   "beq",   # 0x20
+	"bvc",  "bvs",   "bpl",   "bmi",   "bge",   "blt",   "bgt",   "ble",   # 0x28
+	"tsx",  "ins",   "pula",  "pulb",  "des",   "txs",   "psha",  "pushb", # 0x30
+	"pulx", "rts",   "abx",   "rti",   "pshx",  "mul",   "wai",   "swi",   # 0x38
+	"nega", None,    None,    "coma",  "lsra",  None,    "rora",  "asra",  # 0x40
+	"asla", "rola",  "deca",  None,    "inca",  "tsta",  None,    "clra",  # 0x48     t @ 4e ?
+	"negb", None,    None,    "comb",  "lsrb",  None,    "rorb",  "asrb",  # 0x50
+	"aslb", "rolb",  "decb",  None,    "incb",  "tstb",  None,    "clrb",  # 0x58     t @ 5e ?
+	"neg",  None,    None,    "com",   "lsr",   None,    "ror",   "asr",   # 0x60
+	"asl",  "rol",   "dec",   None,    "inc",   "tst",   "jmp",   "clr",   # 0x68
+	"neg",  None,    None,    "com",   "lsr",   None,    "ror",   "asr",   # 0x70
+	"asl",  "rol",   "dec",   None,    "inc",   "tst",   "jmp",   "clr",   # 0x78
+
+	"suba", "cmpa",  "sbca",  "subd",  "anda",  "bita",  "ldaa",  None,    # 0x80
+	"eora", "adca",  "oraa",  "adda",  "cpx",   "bsr",   "lds",   None,    # 0x88
+	"suba", "cmpa",  "sbca",  "subd",  "anda",  "bita", "ldaa",   "staa",  # 0x90
+	"eora", "adca",  "oraa",  "adda",  "cpx",   "jsr",  "lds",    "sts",   # 0x98
+	"suba", "cmpa",  "sbca",  "subd",  "anda",  "bita", "ldaa",   "staa",  # 0xa0
+	"eora", "adca",  "oraa",  "adda",  "cpx",   "jsr",  "lds",    "sts",   # 0xa8
+	"suba", "cmpa",  "sbca",  "subd",  "anda",  "bita", "ldaa",   "staa",  # 0xb0
+	"eora", "adca",  "oraa",  "adda",  "cpx",   "jsr",  "lds",    "sts",   # 0xb8
+
+
+	"subb", "cmpb",  "sbcb",  "addd",  "andb",  "bitb",  "ldab",  None,    # 0xc0
+	"eorb", "adcb",  "orab",  "addb",  "ldd",   None,   "ldx",   None,    # 0xc8
+	"subb", "cmpb",  "sbcb",  "addd",  "andb",  "bitb", "ldab",   "stab",  # 0xd0
+	"eorb", "adcb",  "orab",  "addb",  "ldd",   "std",  "ldx",    "stx",   # 0xd8
+	"subb", "cmpb",  "sbcb",  "addd",  "andb",  "bitb", "ldab",   "stab",  # 0xe0
+	"eorb", "adcb",  "orab",  "addb",  "ldd",   "std",  "ldx",    "stx",   # 0xe8
+	"subb", "cmpb",  "sbcb",  "addd",  "andb",  "bitb", "ldab",   "stab",  # 0xf0
+	"eorb", "adcb",  "orab",  "addb",  "ldd",   "std",  "ldx",    "stx",   # 0xf8
 ]
 
 NONE = 0
@@ -55,14 +60,6 @@ EXTND = 3
 INDXD = 4
 INHER = 5
 REL = 6
-
-
-# INDXD, INDXD, INDXD, INDXD, INDXD, INDXD, INDXD, INDXD,  # 0x00
-# INHER, INHER, INHER, INHER, INHER, INHER, INHER, INHER,  # 0x00
-# REL, REL, REL, REL, REL, REL, REL, REL,  # 0x00
-# EXTND, EXTND, EXTND, EXTND, EXTND, EXTND, EXTND, EXTND,  # 0x00
-# IMMED, IMMED, IMMED, IMMED, IMMED, IMMED, IMMED, IMMED,  # 0x00
-# DIR, DIR, DIR, DIR, DIR, DIR, DIR, DIR,  # 0x00
 
 InstructionOperandTypes = [
 	NONE, INHER, NONE, NONE, INHER, INHER, INHER, INHER,  # 0x00
@@ -99,30 +96,6 @@ InstructionOperandTypes = [
     EXTND, EXTND, EXTND, EXTND, EXTND, EXTND, EXTND, EXTND,  # 0xF8
 ]
 
-OperandLengths = [
-	0,  # NONE
-	2,  # ABS
-	2,  # ABS_DEST
-	2,  # ABS_X
-	2,  # ABS_X_DEST
-	2,  # ABS_Y
-	2,  # ABS_Y_DEST
-	0,  # ACCUM
-	2,  # ADDR
-	1,  # IMMED
-	2,  # IND
-	1,  # IND_X
-	1,  # IND_X_DEST
-	1,  # IND_Y
-	1,  # IND_Y_DEST
-	1,  # REL
-	1,  # ZERO
-	1,  # ZREO_DEST
-	1,  # ZERO_X
-	1,  # ZERO_X_DEST
-	1,  # ZERO_Y
-	1   # ZERO_Y_DEST
-]
 
 OperandTokens = [
 	lambda value: [],  # NONE
