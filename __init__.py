@@ -5,11 +5,12 @@ import os
 from binaryninja.architecture import Architecture
 from binaryninja.function import RegisterInfo, InstructionInfo, InstructionTextToken
 # from binaryninja.lowlevelil import LowLevelILLabel, LLIL_TEMP
-# from binaryninja.binaryview import BinaryView
+from binaryninja.binaryview import BinaryView
 # from binaryninja.types import Symbol
-# from binaryninja.log import log_error
-# from binaryninja.enums import (BranchType, InstructionTextTokenType,
-#                                LowLevelILOperation, LowLevelILFlagCondition, FlagRole, SegmentFlag, SymbolType)
+from binaryninja.log import log_error
+from binaryninja.enums import (BranchType, InstructionTextTokenType,
+                               LowLevelILOperation, LowLevelILFlagCondition, FlagRole, SegmentFlag, SymbolType,
+                               Endianness)
 
 # 2-3 compatibility
 from binaryninja import range
@@ -22,74 +23,175 @@ INDXD = 4
 INHER = 5
 REL = 6
 
-instructions = []
 
-instructions[0x01] = {
-    "label": "nop",
-    "length": 1,
-    "operand": INHER
+def il_operand_none():
+    pass
+
+
+def il_operand_extend(il, value):
+    il.load(1, il.const_pointer(2, value))
+
+
+TEXT_OPCODE = lambda opcode: InstructionTextToken(InstructionTextTokenType.OpcodeToken, "%-7s " % opcode)
+
+
+instructions = {
+    0x01: {
+        "label": "nop",
+        "length": 1,
+        "operand": INHER,
+        "tokens": lambda operand: [
+            TEXT_OPCODE("nop")
+        ],
+        "operandIL": il_operand_none,
+        "instructionIL": lambda il, operand: il.nop(),
+    },
+    0xb6: {
+        "label": "ldaa",
+        "length": 3,
+        "operand": EXTND,
+        "tokens": lambda operand: [
+            TEXT_OPCODE("ldaa"),
+            InstructionTextToken(InstructionTextTokenType.PossibleAddressToken, "$%.4x" % operand, operand)
+        ],
+        "operandIL": il_operand_extend,
+        "instructionIL": lambda il, operand: il.set_reg(1, "a", operand, flags="nzv"),
+    }
 }
 
 
-def parse_instruction(data, addr):
-    instruction = instructions[data[0]]
-    if instruction == None
+def word_as_ord(word):
+    return struct.unpack("<H", word)[0]
+
+
+def parse_instruction(data, address):
+    instruction = instructions.get(data[0], None)
+    if not instruction:
         instruction = {
-            length: 1
+            "label": "???",
+            "length": 1,
+            "tokens": lambda _: None,
+            "operandIL": None,
+            "instructionIL": None,
         }
-    return instruction
+    print(instruction)
+
+    length = instruction["length"]
+
+    value = None
+    if length > 1:
+        value = word_as_ord(data[1:length])
+
+    return instruction, value
 
 
-class M6502(Architecture):
-    name = "6502"
+class M6803(Architecture):
+    name = "m6803"
     address_size = 2
     default_int_size = 1
     instr_alignment = 1
     max_instr_length = 3
+    endianness = Endianness.BigEndian
 
-    def convert_to_nop(self, data, addr):
+    regs = {
+        # Stack Pointer
+        'sp': RegisterInfo('sp', 2),
+
+        # program counter
+        'pc': RegisterInfo('pc', 2),
+
+        # Index register
+        "x": RegisterInfo("x", 1),
+
+        # Accumulator
+        'd': RegisterInfo('a', 2),
+        'a': RegisterInfo('a', 2, 0),
+        'b': RegisterInfo('a', 2, 1),
+
+        'ccr': RegisterInfo('ccr', 1)
+
+    }
+
+    stack_pointer = 'sp'
+
+    flags = ["h", "i", "n", "z", "v", "c"]
+    flag_roles = {
+        "h": FlagRole.HalfCarryFlagRole,
+        "i": FlagRole.SpecialFlagRole,  # Interrupt
+        "n": FlagRole.NegativeSignFlagRole,
+        "z": FlagRole.ZeroFlagRole,
+        "v": FlagRole.OverflowFlagRole,
+        "c": FlagRole.CarryFlagRole,
+    }
+
+    flag_write_types = ["*", "nzvc", "z", "nzv", "hnzvc", "c", "i", "v"]
+
+    flags_written_by_flag_write_type = {
+        "*": ["h", "i", "n", "z", "v", "c"],
+        "nzvc": ["n", "z", "v", "c"],
+        "z": ["z"],
+        "nzv": ["n", "z", "v"],
+        "hnzvc": ["h", "n", "z", "v", "c"],
+        "c": ["c"],
+        "i": ["i"],
+        "v": ["v"],
+    }
+
+    # flags_required_for_flag_condition = {
+    #     LowLevelILFlagCondition.LLFC_NEG: ["n"],
+    #     LowLevelILFlagCondition.LLFC_POS: ["n"],
+    #     LowLevelILFlagCondition.LLFC_O: ["v"],
+    #     LowLevelILFlagCondition.LLFC_NO: ["v"],
+    #     LowLevelILFlagCondition.LLFC_E: ["z"],
+    #     LowLevelILFlagCondition.LLFC_NE: ["z"],
+    #     LowLevelILFlagCondition.LLFC_ULT: ["n", "v"],
+    #     LowLevelILFlagCondition.LLFC_ULE: ["z", "n", "v"],
+    #     LowLevelILFlagCondition.LLFC_UGE: ["v", "n"],
+    #     LowLevelILFlagCondition.LLFC_UGT: ["z", "n", "v"],
+    # }
+
+    def convert_to_nop(self, data, address):
         return b"\x01" * len(data)
 
-    def get_instruction_info(self, data, addr):
-        instruction = parse_instruction(data, addr)
+    def get_instruction_info(self, data, address):
+        instruction, _ = parse_instruction(data, address)
 
         result = InstructionInfo()
-        result.length = 1
+        result.length = instruction["length"]
 
         return result
 
+    def get_instruction_text(self, data, address):
+        instruction, value = parse_instruction(data, address)
+        token_function = instruction["tokens"]
 
-# 	regs = {
-# 		"a": RegisterInfo("a", 1),
-# 		"x": RegisterInfo("x", 1),
-# 		"y": RegisterInfo("y", 1),
-# 		"s": RegisterInfo("s", 1)
-# 	}
-# 	stack_pointer = "s"
-# 	flags = ["c", "z", "i", "d", "b", "v", "s"]
-# 	flag_write_types = ["*", "czs", "zvs", "zs"]
-# 	flag_roles = {
-# 		"c": FlagRole.SpecialFlagRole,  # Not a normal carry flag, subtract result is inverted
-# 		"z": FlagRole.ZeroFlagRole,
-# 		"v": FlagRole.OverflowFlagRole,
-# 		"s": FlagRole.NegativeSignFlagRole
-# 	}
-# 	flags_required_for_flag_condition = {
-# 		LowLevelILFlagCondition.LLFC_UGE: ["c"],
-# 		LowLevelILFlagCondition.LLFC_ULT: ["c"],
-# 		LowLevelILFlagCondition.LLFC_E: ["z"],
-# 		LowLevelILFlagCondition.LLFC_NE: ["z"],
-# 		LowLevelILFlagCondition.LLFC_NEG: ["s"],
-# 		LowLevelILFlagCondition.LLFC_POS: ["s"]
-# 	}
-# 	flags_written_by_flag_write_type = {
-# 		"*": ["c", "z", "v", "s"],
-# 		"czs": ["c", "z", "s"],
-# 		"zvs": ["z", "v", "s"],
-# 		"zs": ["z", "s"]
-# 	}
+        if token_function is None:
+            return None
+
+        length = instruction["length"]
+
+        tokens = token_function(value)
+        return tokens, length
+
+    # def get_instruction_low_level_il(self, data, address, il):
+    #     instruction, value = parse_instruction(data, address)
+    #
+    #     operand = instruction["operandIL"](il, value)
+    #     instruction_il = instruction["instructionIL"](il, operand)
+    #
+    #     if isinstance(instruction_il, list):
+    #         for i in instruction_il:
+    #             il.append(i)
+    #     elif instruction_il is not None:
+    #         il.append(instruction_il)
+    #
+    #     return instruction["length"]
+
+
+# ------example code
+
 #
-# 	def decode_instruction(self, data, addr):
+# 	def decode_instruction(self, data, address):
 # 		if len(data) < 1:
 # 			return None, None, None, None
 # 		opcode = ord(data[0:1])
@@ -105,7 +207,7 @@ class M6502(Architecture):
 # 		if OperandLengths[operand] == 0:
 # 			value = None
 # 		elif operand == REL:
-# 			value = (addr + 2 + struct.unpack("b", data[1:2])[0]) & 0xffff
+# 			value = (address + 2 + struct.unpack("b", data[1:2])[0]) & 0xffff
 # 		elif OperandLengths[operand] == 1:
 # 			value = ord(data[1:2])
 # 		else:
@@ -113,7 +215,7 @@ class M6502(Architecture):
 #
 # 		return instr, operand, length, value
 #
-# 	def get_instruction_info(self, data, addr):
+# 	def get_instruction_info(self, data, address):
 # 		instr, operand, length, value = self.decode_instruction(data, addr)
 # 		if instr is None:
 # 			return None
@@ -206,5 +308,50 @@ class M6502(Architecture):
 # 			return None
 # 		return b"\xa9" + chr(value & 0xff) + b"\xea"
 
+class TR707View(BinaryView):
+    name = "TR707"
+    long_name = "Roland TR707 Program Rom"
 
-M6502.register()
+    def __init__(self, data):
+        BinaryView.__init__(self, parent_view=data, file_metadata=data.file)
+        self.platform = Architecture['m6803'].standalone_platform
+
+    @classmethod
+    def is_valid_for_data(self, data):
+        """ assumes the first operation is to reset the LCD """
+
+        header = data.read(0, 6)
+        print("Header: ", header)
+        if len(header) < 6:
+            return False
+        return header == b"\xb6\x10\x00\xb6\x10\x00"
+
+    def init(self):
+        try:
+            hdr = self.parent_view.read(0, 16)
+
+            # Add the ROM
+            self.add_auto_segment(0x8000, 0x4000, 0, 0x4000,
+                                  SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable | SegmentFlag.SegmentContainsCode)
+
+            # and it's mirror
+            self.add_auto_segment(0xc000, 0x4000, 0, 0x4000,
+                                  SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable | SegmentFlag.SegmentContainsCode)
+
+            self.add_entry_point(0x8000)
+
+            return True
+        except:
+            log_error(traceback.format_exc())
+            return False
+
+    def perform_is_executable(self):
+        return True
+
+    def perform_get_entry_point(self):
+        return 0x8000
+
+
+TR707View.register()
+
+M6803.register()
