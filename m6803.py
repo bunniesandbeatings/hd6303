@@ -16,15 +16,15 @@ from binaryninja.enums import (BranchType, InstructionTextTokenType,
 # INHER = 5
 # REL = 6
 
-def il_operand_none():
-    pass
+# def il_operand_none():
+#     pass
+#
+#
+# def il_operand_extend(il, value):
+#     il.load(1, il.const_pointer(2, value))
+#
 
-
-def il_operand_extend(il, value):
-    il.load(1, il.const_pointer(2, value))
-
-
-def operand_token_extended(operand):
+def operand_word_address(operand):
     return [
         InstructionTextToken(
             InstructionTextTokenType.PossibleAddressToken,
@@ -34,7 +34,7 @@ def operand_token_extended(operand):
     ]
 
 
-def operand_token_immediate_byte(operand):
+def operand_byte_address(operand):
     return [
         InstructionTextToken(
             InstructionTextTokenType.PossibleAddressToken,
@@ -44,24 +44,35 @@ def operand_token_immediate_byte(operand):
     ]
 
 
-instructions = {
-    0x01: {
-        "label": "nop",
-        "length": 1,
-        "tokenFn": lambda data: [],
-        # "operandIL": il_operand_none,
-        # "instructionIL": lambda il, operand: il.nop(),
-    },
-    0xb6: {
-        "label": "ldaa",
-        "length": 3,
-        "tokenFn": operand_token_extended,
-        # "operandIL": il_operand_extend,
-        # "instructionIL": lambda il, operand: il.set_reg(1, "a", operand, flags="nzv"),
-    },
-    0x86: {"label": "ldaa", "length": 2,
-           "tokenFn": operand_token_immediate_byte}
+def operand_token_extended(operand):
+    return operand_word_address(operand)
 
+
+def operand_token_immediate_word(operand):
+    return operand_word_address(operand)
+
+
+def operand_token_immediate_byte(operand):
+    return operand_byte_address(operand)
+
+
+def operand_token_inherent(operand):
+    return operand_token_none(operand)
+
+
+def operand_token_none(operand):
+    return []
+
+
+instructions = {
+    0x01: {"label": "nop", "length": 1, "tokenFn": operand_token_none},
+    0x5f: {"label": "clrb", "length": 1, "tokenFn": operand_token_inherent},
+    0x86: {"label": "ldaa", "length": 2, "tokenFn": operand_token_immediate_byte},
+    0x8e: {"label": "lds", "length": 3, "tokenFn": operand_token_immediate_word},
+    0xb6: {"label": "ldaa", "length": 3, "tokenFn": operand_token_extended},
+    0xc6: {"label": "ldab", "length": 2, "tokenFn": operand_token_immediate_byte},
+    0xce: {"label": "ldx", "length": 3, "tokenFn": operand_token_immediate_word},
+    0xfd: {"label": "std", "length": 3, "tokenFn": operand_token_extended},
 }
 
 
@@ -173,10 +184,11 @@ class M6803(Architecture):
         if instruction is None:
             return None
 
+        print(instruction)
+
         token_function = instruction["tokenFn"]
         length = instruction["length"]
         label = instruction["label"]
-
         tokens = [text_opcode(label)]
         tokens += token_function(value)
 
