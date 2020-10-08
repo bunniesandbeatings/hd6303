@@ -1,4 +1,5 @@
 import struct
+from binaryninja.log import log_error
 
 from binaryninja.architecture import Architecture
 from binaryninja.function import RegisterInfo, InstructionInfo, InstructionTextToken
@@ -23,12 +24,21 @@ def il_operand_extend(il, value):
     il.load(1, il.const_pointer(2, value))
 
 
-def operand_token_extended(data):
-    operand = word_as_ord(data[1:3])
+def operand_token_extended(operand):
     return [
         InstructionTextToken(
             InstructionTextTokenType.PossibleAddressToken,
             "$%.4x" % operand,
+            operand
+        )
+    ]
+
+
+def operand_token_immediate_byte(operand):
+    return [
+        InstructionTextToken(
+            InstructionTextTokenType.PossibleAddressToken,
+            "$%.2x" % operand,
             operand
         )
     ]
@@ -48,7 +58,10 @@ instructions = {
         "tokenFn": operand_token_extended,
         # "operandIL": il_operand_extend,
         # "instructionIL": lambda il, operand: il.set_reg(1, "a", operand, flags="nzv"),
-    }
+    },
+    0x86: {"label": "ldaa", "length": 2,
+           "tokenFn": operand_token_immediate_byte}
+
 }
 
 
@@ -63,14 +76,13 @@ def parse_instruction(data, address):
             "label": "???",
             "length": 1,
             "tokenFn": lambda data: [],
-            # "tokens": lambda data: [
-            #     InstructionTextToken(InstructionTextTokenType.HexDumpByteValueToken, "$%.2x" % data[0], data[0])
-            # ],
         }
     length = instruction["length"]
 
     value = None
-    if length > 1:
+    if length == 2:
+        value = ord(data[1:2])
+    elif length == 3:
         value = word_as_ord(data[1:length])
 
     return instruction, value
@@ -166,7 +178,7 @@ class M6803(Architecture):
         label = instruction["label"]
 
         tokens = [text_opcode(label)]
-        tokens += token_function(data)
+        tokens += token_function(value)
 
         return tokens, length
 
