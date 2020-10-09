@@ -182,7 +182,6 @@ class M6803(Architecture):
     def get_instruction_info(self, data: bytes, address: int):
         log_debug("GII bytes,addr : %s, $%.4x" % (data,address))
         label, length, value, _ = parse_instruction(data, address)
-        log_debug("GII: opcode(len): %s(%d)" % (label, length))
 
         result = InstructionInfo()
         result.length = 1 + length
@@ -211,6 +210,11 @@ class M6803(Architecture):
             tokens += operand(value)
 
         return tokens, 1 + length
+
+    def get_instruction_low_level_il(self, data, address, il):
+        label, length, value, operand = parse_instruction(data, address)
+
+        return 1 + length
 
     # def get_instruction_low_level_il(self, data, address, il):
     #     instruction, value = parse_instruction(data, address)
