@@ -255,7 +255,7 @@ instructions = {
     0x7b: {"label": "tim", "token": operand_token_direct_memory()},  # HD8303
     0x7c: {"label": "inc", "token": operand_token_extended()},
     0x7d: {"label": "tst", "token": operand_token_extended()},
-    # 0x7e: {"label": "jmp", "token": operand_token_extended()},
+    0x7e: {"label": "jmp", "token": operand_token_extended()},
     0x7f: {"label": "clr", "token": operand_token_extended()},
     0x80: {"label": "suba", "token": operand_token_immediate_byte()},
     0x81: {"label": "cmpa", "token": operand_token_immediate_byte()},
@@ -290,7 +290,7 @@ instructions = {
     0x9f: {"label": "sts", "token": operand_token_direct()},
     0xa7: {"label": "staa", "token": operand_token_indexed()},
     0xb6: {"label": "ldaa", "token": operand_token_extended()},
-    # 0xbd: {"label": "jsr", "token": operand_token_extended()},
+    0xbd: {"label": "jsr", "token": operand_token_extended()},
     0xc3: {"label": "addd", "token": operand_token_immediate_word()},
     0xc6: {"label": "ldab", "token": operand_token_immediate_byte()},
     0xc7: {},
