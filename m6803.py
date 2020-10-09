@@ -92,6 +92,25 @@ def operand_token_direct_memory():
     ]
 
 
+def operand_token_immediate_indexed():
+    return 2, lambda operand: [
+        InstructionTextToken(InstructionTextTokenType.TextToken, "#"),
+        InstructionTextToken(
+            InstructionTextTokenType.IntegerToken,
+            "$%.2x" % (operand >> 8),
+            operand
+        ),
+        InstructionTextToken(InstructionTextTokenType.TextToken, ", "),
+        InstructionTextToken(
+            InstructionTextTokenType.PossibleAddressToken,
+            "$%.2x" % (operand & 0xff),
+            operand
+        ),
+        InstructionTextToken(InstructionTextTokenType.TextToken, ", "),
+        InstructionTextToken(InstructionTextTokenType.RegisterToken, "x")
+    ]
+
+
 def operand_token_none():
     return 0, lambda: []
 
@@ -121,7 +140,6 @@ def operand_token_direct():
 
 
 instructions = {
-
     0x00: {},
     0x01: {"label": "nop", "token": operand_token_none()},
     0x02: {},
@@ -143,9 +161,6 @@ instructions = {
     0x1d: {},
     0x1e: {},
     0x1f: {},
-
-
-
     0x20: {"label": "bra", "token": operand_token_relative()},
     0x21: {"label": "brn", "token": operand_token_relative()},
     0x22: {"label": "bhi", "token": operand_token_relative()},
@@ -162,7 +177,22 @@ instructions = {
     0x2d: {"label": "blt", "token": operand_token_relative()},
     0x2e: {"label": "bgt", "token": operand_token_relative()},
     0x2f: {"label": "ble", "token": operand_token_relative()},
-
+    0x30: {"label": "tsx", "token": operand_token_relative()},
+    0x31: {"label": "ins", "token": operand_token_relative()},
+    0x32: {"label": "pula", "token": operand_token_relative()},
+    0x33: {"label": "pulb", "token": operand_token_relative()},
+    0x34: {"label": "des", "token": operand_token_relative()},
+    0x35: {"label": "txs", "token": operand_token_relative()},
+    0x36: {"label": "psha", "token": operand_token_relative()},
+    0x37: {"label": "pshb", "token": operand_token_relative()},
+    0x38: {"label": "pulx", "token": operand_token_relative()},
+    0x39: {"label": "rts", "token": operand_token_relative()},
+    0x3a: {"label": "abx", "token": operand_token_relative()},
+    0x3b: {"label": "rti", "token": operand_token_relative()},
+    0x3c: {"label": "pshx", "token": operand_token_relative()},
+    0x3d: {"label": "mul", "token": operand_token_relative()},
+    0x3e: {"label": "wai", "token": operand_token_relative()},
+    0x3f: {"label": "swi", "token": operand_token_relative()},
     0x40: {"label": "nega", "token": operand_token_none()},
     0x41: {},
     0x42: {},
@@ -195,11 +225,28 @@ instructions = {
     0x5d: {"label": "tstb", "token": operand_token_none()},
     0x5e: {},
     0x5f: {"label": "clrb", "token": operand_token_inherent()},
+    0x60: {"label": "neg", "token": operand_token_indexed()},
+    0x61: {"label": "aim", "token": operand_token_immediate_indexed()},  # HD8303
+    0x62: {"label": "oim", "token": operand_token_immediate_indexed()},  # HD8303
+    0x63: {"label": "com", "token": operand_token_indexed()},
+    0x64: {"label": "lsr", "token": operand_token_indexed()},
+    0x65: {"label": "eim", "token": operand_token_immediate_indexed()},  # HD8303
+    0x66: {"label": "ror", "token": operand_token_indexed()},
+    0x67: {"label": "asr", "token": operand_token_indexed()},
+    0x68: {"label": "asl", "token": operand_token_immediate_indexed()},  # HD8303
+    0x69: {"label": "rol", "token": operand_token_indexed()},
+    0x6a: {"label": "dec", "token": operand_token_indexed()},
+    0x6b: {"label": "tim", "token": operand_token_indexed()},
+    0x6c: {"label": "inc", "token": operand_token_indexed()},
+    0x6d: {"label": "tst", "token": operand_token_indexed()},
+    # 0x6e: {"label": "jmp", "token": operand_token_indexed()},  # FIXME - do we handle this in the code?
     0x6f: {"label": "clr", "token": operand_token_indexed()},
     0x70: {"label": "neg", "token": operand_token_extended()},
+    0x71: {"label": "aim", "token": operand_token_direct_memory()},  # HD8303
     0x72: {"label": "oim", "token": operand_token_direct_memory()},  # HD8303
     0x73: {"label": "com", "token": operand_token_extended()},
     0x74: {"label": "lsr", "token": operand_token_extended()},
+    0x75: {"label": "eim", "token": operand_token_direct_memory()},  # HD8303
     0x76: {"label": "ror", "token": operand_token_extended()},
     0x77: {"label": "asr", "token": operand_token_extended()},
     0x78: {"label": "asl", "token": operand_token_extended()},
@@ -208,7 +255,7 @@ instructions = {
     0x7b: {"label": "tim", "token": operand_token_direct_memory()},  # HD8303
     0x7c: {"label": "inc", "token": operand_token_extended()},
     0x7d: {"label": "tst", "token": operand_token_extended()},
-    0x7e: {"label": "jmp", "token": operand_token_extended()},
+    # 0x7e: {"label": "jmp", "token": operand_token_extended()},
     0x7f: {"label": "clr", "token": operand_token_extended()},
     0x80: {"label": "suba", "token": operand_token_immediate_byte()},
     0x81: {"label": "cmpa", "token": operand_token_immediate_byte()},
@@ -243,7 +290,7 @@ instructions = {
     0x9f: {"label": "sts", "token": operand_token_direct()},
     0xa7: {"label": "staa", "token": operand_token_indexed()},
     0xb6: {"label": "ldaa", "token": operand_token_extended()},
-    0xbd: {"label": "jsr", "token": operand_token_extended()},
+    # 0xbd: {"label": "jsr", "token": operand_token_extended()},
     0xc3: {"label": "addd", "token": operand_token_immediate_word()},
     0xc6: {"label": "ldab", "token": operand_token_immediate_byte()},
     0xc7: {},
@@ -264,6 +311,7 @@ branching_instructions = [
     "bvc", "bvs", "bpl", "bmi",
     "bge", "blt", "bgt", "ble",
 ]
+
 
 def word_as_ord(word):
     return struct.unpack(">H", word)[0]
