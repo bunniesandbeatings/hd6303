@@ -10,15 +10,6 @@ from typing import (Callable, Tuple, Optional)
 
 OperandFunction = Callable[[int], any]  # FIXME: can we build a Token base type?
 
-
-# NONE = 0
-# IMMED = 1
-# DIR = 2
-# EXTND = 3
-# INDXD = 4
-# INHER = 5
-# REL = 6
-
 # def il_operand_none():
 #     pass
 #
@@ -175,19 +166,6 @@ class M6803(Architecture):
         "v": ["v"],
     }
 
-    # flags_required_for_flag_condition = {
-    #     LowLevelILFlagCondition.LLFC_NEG: ["n"],
-    #     LowLevelILFlagCondition.LLFC_POS: ["n"],
-    #     LowLevelILFlagCondition.LLFC_O: ["v"],
-    #     LowLevelILFlagCondition.LLFC_NO: ["v"],
-    #     LowLevelILFlagCondition.LLFC_E: ["z"],
-    #     LowLevelILFlagCondition.LLFC_NE: ["z"],
-    #     LowLevelILFlagCondition.LLFC_ULT: ["n", "v"],
-    #     LowLevelILFlagCondition.LLFC_ULE: ["z", "n", "v"],
-    #     LowLevelILFlagCondition.LLFC_UGE: ["v", "n"],
-    #     LowLevelILFlagCondition.LLFC_UGT: ["z", "n", "v"],
-    # }
-
     def convert_to_nop(self, data, address):
         return b"\x01" * len(data)
 
@@ -226,3 +204,16 @@ class M6803(Architecture):
     #         il.append(instruction_il)
     #
     #     return instruction["length"]
+
+    # flags_required_for_flag_condition = {
+    #     LowLevelILFlagCondition.LLFC_NEG: ["n"],
+    #     LowLevelILFlagCondition.LLFC_POS: ["n"],
+    #     LowLevelILFlagCondition.LLFC_O: ["v"],
+    #     LowLevelILFlagCondition.LLFC_NO: ["v"],
+    #     LowLevelILFlagCondition.LLFC_E: ["z"],
+    #     LowLevelILFlagCondition.LLFC_NE: ["z"],
+    #     LowLevelILFlagCondition.LLFC_ULT: ["n", "v"],
+    #     LowLevelILFlagCondition.LLFC_ULE: ["z", "n", "v"],
+    #     LowLevelILFlagCondition.LLFC_UGE: ["v", "n"],
+    #     LowLevelILFlagCondition.LLFC_UGT: ["z", "n", "v"],
+    # }
