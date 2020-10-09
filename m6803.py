@@ -183,6 +183,9 @@ class M6803(Architecture):
         log_debug("GII bytes,addr : %s, $%.4x" % (data,address))
         label, length, value, _ = parse_instruction(data, address)
 
+        if label == "???":
+            return None
+
         result = InstructionInfo()
         result.length = 1 + length
         log_debug("GII length: %d" % result.length)
@@ -201,6 +204,9 @@ class M6803(Architecture):
         label, length, value, operand = parse_instruction(data, address)
 
         log_debug("GIT: opcode(len): %s(%d)" % (label, length))
+
+        if label == "???":
+            return None
 
         if value is not None:
             log_debug("Value: %.4x" % value)
