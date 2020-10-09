@@ -10,6 +10,7 @@ from typing import (Callable, Tuple, Optional)
 
 OperandFunction = Callable[[int], any]  # FIXME: can we build a Token base type?
 
+
 # def il_operand_none():
 #     pass
 #
@@ -66,6 +67,10 @@ def operand_token_inherent():
     return operand_token_none()
 
 
+def operand_token_relative():
+    return operand_byte_address()
+
+
 def operand_token_none():
     return 0, lambda: []
 
@@ -73,6 +78,7 @@ def operand_token_none():
 instructions = {
     0x01: {"label": "nop", "token": operand_token_none()},
     0x08: {"label": "inx", "token": operand_token_none()},
+    0x26: {"label": "bne", "token": operand_token_relative()},
     0x5f: {"label": "clrb", "token": operand_token_inherent()},
     0x86: {"label": "ldaa", "token": operand_token_immediate_byte()},
     0x8e: {"label": "lds", "token": operand_token_immediate_word()},
@@ -84,6 +90,7 @@ instructions = {
     0xfd: {"label": "std", "token": operand_token_extended()},
 }
 
+branching_instructions = ["bne"]
 
 def word_as_ord(word):
     return struct.unpack(">H", word)[0]
@@ -110,6 +117,7 @@ def parse_instruction(data: any, address: any) -> Tuple[str, int, Optional[int],
     elif length == 2:
         value = word_as_ord(data[1:length + 1])
 
+    # TODO: consider moving destination address here for branches etc.
     return label, length, value, operand
 
 
@@ -171,18 +179,29 @@ class M6803(Architecture):
     def convert_to_nop(self, data, address):
         return b"\x01" * len(data)
 
-    def get_instruction_info(self, data, address):
-        _, length, _, _ = parse_instruction(data, address)
+    def get_instruction_info(self, data: bytes, address: int):
+        log_debug("GII bytes,addr : %s, $%.4x" % (data,address))
+        label, length, value, _ = parse_instruction(data, address)
+        log_debug("GII: opcode(len): %s(%d)" % (label, length))
 
         result = InstructionInfo()
         result.length = 1 + length
+        log_debug("GII length: %d" % result.length)
+
+        if label in branching_instructions:
+            relative = struct.unpack("b", data[1:2])[0]
+            # Does branching wrap at EOM/BOM? would anyone put branches there anyway?
+            destination = (address + relative) & 0xffff
+            log_debug("Branch '%s' destination $%.4x" % (label, destination))
+            result.add_branch(BranchType.TrueBranch, destination)
+            result.add_branch(BranchType.FalseBranch, address + result.length)
 
         return result
 
     def get_instruction_text(self, data, address) -> [[any], int]:
         label, length, value, operand = parse_instruction(data, address)
 
-        log_debug("opcode(len): %s(%d)" % (label, length))
+        log_debug("GIT: opcode(len): %s(%d)" % (label, length))
 
         if value is not None:
             log_debug("Value: %.4x" % value)
