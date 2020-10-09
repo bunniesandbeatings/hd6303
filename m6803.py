@@ -19,6 +19,7 @@ OperandFunction = Callable[[int], any]  # FIXME: can we build a Token base type?
 #     il.load(1, il.const_pointer(2, value))
 #
 
+
 def operand_word_address():
     return 2, lambda operand: [
         InstructionTextToken(
@@ -39,18 +40,6 @@ def operand_byte_address():
     ]
 
 
-def operand_token_extended():
-    return operand_word_address()
-
-
-def operand_token_immediate_word():
-    return operand_word_address()
-
-
-def operand_token_immediate_byte():
-    return operand_byte_address()
-
-
 def operand_token_index():
     return 1, lambda operand: [
         InstructionTextToken(
@@ -63,16 +52,28 @@ def operand_token_index():
     ]
 
 
+def operand_token_none():
+    return 0, lambda: []
+
+
+def operand_token_extended():
+    return operand_word_address()
+
+
+def operand_token_immediate_word():
+    return operand_word_address()
+
+
+def operand_token_immediate_byte():
+    return operand_byte_address()
+
+
 def operand_token_inherent():
     return operand_token_none()
 
 
 def operand_token_relative():
     return operand_byte_address()
-
-
-def operand_token_none():
-    return 0, lambda: []
 
 
 instructions = {
@@ -92,12 +93,14 @@ instructions = {
 
 branching_instructions = ["bne"]
 
+
 def word_as_ord(word):
     return struct.unpack(">H", word)[0]
 
 
 def parse_instruction(data: any, address: any) -> Tuple[str, int, Optional[int], OperandFunction]:
     log_debug("Parsing opcode: %.2x" % data[0])
+
     instruction = instructions.get(data[0], None)
     if not instruction:
         instruction = {
@@ -180,7 +183,7 @@ class M6803(Architecture):
         return b"\x01" * len(data)
 
     def get_instruction_info(self, data: bytes, address: int):
-        log_debug("GII bytes,addr : %s, $%.4x" % (data,address))
+        log_debug("GII bytes,addr : %s, $%.4x" % (data, address))
         label, length, value, _ = parse_instruction(data, address)
 
         if label == "???":
