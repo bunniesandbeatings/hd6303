@@ -56,8 +56,9 @@ class TR707View(BinaryView):
                 rom_flags
             )
 
-            self.define_auto_symbol(Symbol(SymbolType.FunctionSymbol, START_OF_PROGRAM_ROM, "_start"))
-            self.add_entry_point(START_OF_PROGRAM_ROM)
+            # Seriously looks as if the TR707 rom is designed to start at $C000
+            self.define_auto_symbol(Symbol(SymbolType.FunctionSymbol, START_OF_PROGRAM_ROM_MIRROR, "_start"))
+            self.add_entry_point(START_OF_PROGRAM_ROM_MIRROR)
 
             return True
         except:
@@ -68,7 +69,7 @@ class TR707View(BinaryView):
         return True
 
     def perform_get_entry_point(self):
-        return START_OF_PROGRAM_ROM
+        return START_OF_PROGRAM_ROM_MIRROR
 
     def perform_get_address_size(self):
         return 8

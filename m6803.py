@@ -1,4 +1,5 @@
 import struct
+
 from binaryninja.log import log_error, log_debug
 
 from binaryninja.architecture import Architecture
@@ -40,7 +41,29 @@ def operand_byte_address():
     ]
 
 
-def operand_token_index():
+def operand_byte():
+    return 1, lambda operand: [
+        InstructionTextToken(InstructionTextTokenType.TextToken, "#"),
+        InstructionTextToken(
+            InstructionTextTokenType.IntegerToken,
+            "$%.2x" % operand,
+            operand
+        )
+    ]
+
+
+def operand_word():
+    return 2, lambda operand: [
+        InstructionTextToken(InstructionTextTokenType.TextToken, "#"),
+        InstructionTextToken(
+            InstructionTextTokenType.IntegerToken,
+            "$%.4x" % operand,
+            operand
+        )
+    ]
+
+
+def operand_token_indexed():
     return 1, lambda operand: [
         InstructionTextToken(
             InstructionTextTokenType.PossibleAddressToken,
@@ -49,6 +72,23 @@ def operand_token_index():
         ),
         InstructionTextToken(InstructionTextTokenType.TextToken, ", "),
         InstructionTextToken(InstructionTextTokenType.RegisterToken, "x")
+    ]
+
+
+def operand_token_direct_memory():
+    return 2, lambda operand: [
+        InstructionTextToken(InstructionTextTokenType.TextToken, "#"),
+        InstructionTextToken(
+            InstructionTextTokenType.IntegerToken,
+            "$%.4x" % (operand >> 8),
+            operand
+        ),
+        InstructionTextToken(InstructionTextTokenType.TextToken, ", "),
+        InstructionTextToken(
+            InstructionTextTokenType.PossibleAddressToken,
+            "$%.2x" % (operand & 0xff),
+            operand
+        ),
     ]
 
 
@@ -61,11 +101,11 @@ def operand_token_extended():
 
 
 def operand_token_immediate_word():
-    return operand_word_address()
+    return operand_word()
 
 
 def operand_token_immediate_byte():
-    return operand_byte_address()
+    return operand_byte()
 
 
 def operand_token_inherent():
@@ -76,21 +116,89 @@ def operand_token_relative():
     return operand_byte_address()
 
 
+def operand_token_direct():
+    return operand_byte_address()
+
+
+
 instructions = {
+
+    # -- Motorola 6801/03 --
+
     0x01: {"label": "nop", "token": operand_token_none()},
     0x08: {"label": "inx", "token": operand_token_none()},
+    0x09: {"label": "dex", "token": operand_token_none()},
+    0x0c: {"label": "clc", "token": operand_token_inherent()},
+    0x0d: {"label": "sec", "token": operand_token_inherent()},
+    0x0e: {"label": "cli", "token": operand_token_inherent()},
+    0x0f: {"label": "sei", "token": operand_token_inherent()},
+    0x10: {"label": "sba", "token": operand_token_inherent()},
+    0x11: {"label": "cba", "token": operand_token_inherent()},
     0x26: {"label": "bne", "token": operand_token_relative()},
+    0x40: {"label": "nega", "token": operand_token_none()},
+    0x43: {"label": "coma", "token": operand_token_none()},
+    0x44: {"label": "lsra", "token": operand_token_none()},
+    0x46: {"label": "rora", "token": operand_token_none()},
+    0x47: {"label": "asra", "token": operand_token_none()},
+    0x48: {"label": "asla", "token": operand_token_none()},
+    0x49: {"label": "rola", "token": operand_token_none()},
+    0x4a: {"label": "deca", "token": operand_token_none()},
+    0x4c: {"label": "inca", "token": operand_token_none()},
+    0x4d: {"label": "tsta", "token": operand_token_none()},
+    0x4f: {"label": "clra", "token": operand_token_inherent()},
+    0x50: {"label": "negb", "token": operand_token_none()},
+    0x53: {"label": "comb", "token": operand_token_none()},
+    0x54: {"label": "lsrb", "token": operand_token_none()},
+    0x56: {"label": "rorb", "token": operand_token_none()},
+    0x57: {"label": "asrb", "token": operand_token_none()},
+    0x58: {"label": "aslb", "token": operand_token_none()},
+    0x59: {"label": "rolb", "token": operand_token_none()},
+    0x5a: {"label": "decb", "token": operand_token_none()},
+    0x5c: {"label": "incb", "token": operand_token_none()},
+    0x5d: {"label": "tstb", "token": operand_token_none()},
     0x5f: {"label": "clrb", "token": operand_token_inherent()},
+    0x6f: {"label": "clr", "token": operand_token_indexed()},
+    0x7f: {"label": "clr", "token": operand_token_extended()},
     0x86: {"label": "ldaa", "token": operand_token_immediate_byte()},
-    0x8e: {"label": "lds", "token": operand_token_immediate_word()},
     0x8c: {"label": "cpx", "token": operand_token_immediate_word()},
-    0xb6: {"label": "ldaa", "token": operand_token_extended()},
-    0xc6: {"label": "ldab", "token": operand_token_immediate_byte()},
-    0xce: {"label": "ldx", "token": operand_token_immediate_word()},
-    0xe7: {"label": "stab", "token": operand_token_index()},
-    0xfd: {"label": "std", "token": operand_token_extended()},
-}
+    0x8e: {"label": "lds", "token": operand_token_immediate_word()},
 
+    0x90: {"label": "suba", "token": operand_token_direct()},
+    0x91: {"label": "cmpa", "token": operand_token_direct()},
+    0x92: {"label": "sbca", "token": operand_token_direct()},
+    0x93: {"label": "subd", "token": operand_token_direct()},
+    0x94: {"label": "anda", "token": operand_token_direct()},
+    0x95: {"label": "bita", "token": operand_token_direct()},
+    0x96: {"label": "ldaa", "token": operand_token_direct()},
+    0x97: {"label": "staa", "token": operand_token_direct()},
+
+    0x98: {"label": "staa", "token": operand_token_direct()},
+    0x99: {"label": "staa", "token": operand_token_direct()},
+    0x9a: {"label": "oraa", "token": operand_token_direct()},
+    0x9b: {"label": "adda", "token": operand_token_direct()},
+    0x9c: {"label": "cpx", "token": operand_token_direct()},
+    0x9d: {"label": "jsr", "token": operand_token_direct()},
+    0x9e: {"label": "lds", "token": operand_token_direct()},
+    0x9f: {"label": "sts", "token": operand_token_direct()},
+
+    0xa7: {"label": "staa", "token": operand_token_indexed()},
+    0xb6: {"label": "ldaa", "token": operand_token_extended()},
+    0xbd: {"label": "jsr", "token": operand_token_extended()},
+    0xc3: {"label": "addd", "token": operand_token_immediate_word()},
+    0xc6: {"label": "ldab", "token": operand_token_immediate_byte()},
+    0xcc: {"label": "ldd", "token": operand_token_immediate_word()},
+    0xce: {"label": "ldx", "token": operand_token_immediate_word()},
+    0xd7: {"label": "stab", "token": operand_token_direct()},
+    0xdd: {"label": "std", "token": operand_token_direct()},
+    0xe7: {"label": "stab", "token": operand_token_indexed()},
+    0xed: {"label": "std", "token": operand_token_indexed()},
+    0xfd: {"label": "std", "token": operand_token_extended()},
+
+    # -- Hitachi HD8303 Specials --
+
+    0x18: {"label": "xgdx", "token": operand_token_none()},
+    0x72: {"label": "oim", "token": operand_token_direct_memory()},
+}
 branching_instructions = ["bne"]
 
 
@@ -193,13 +301,16 @@ class M6803(Architecture):
 
         if label in branching_instructions:
             relative = struct.unpack("b", data[1:2])[0]
-            
+
             # Does branching wrap at EOM/BOM? would anyone put branches there anyway?
             destination = (address + relative + 2) & 0xffff
 
             log_debug("Branch '%s' destination $%.4x" % (label, destination))
             result.add_branch(BranchType.TrueBranch, destination)
             result.add_branch(BranchType.FalseBranch, address + result.length)
+
+        elif label == "jsr":
+            result.add_branch(BranchType.CallDestination, value)
 
         return result
 
@@ -218,6 +329,7 @@ class M6803(Architecture):
 
         return tokens, 1 + length
 
+    # Keeps log output quiet
     def get_instruction_low_level_il(self, data, address, il):
         label, length, value, operand = parse_instruction(data, address)
 
