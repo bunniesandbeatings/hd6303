@@ -1,8 +1,16 @@
 from binaryninja.binaryview import BinaryView
 from binaryninja.log import log_error
-from binaryninja.enums import (SegmentFlag)
+from binaryninja.types import Symbol
+from binaryninja.enums import (SegmentFlag, SymbolType)
 from binaryninja.architecture import Architecture
+
 import traceback
+
+START_OF_BINARY = 0x0000
+START_OF_PROGRAM_ROM = 0x8000
+START_OF_PROGRAM_ROM_MIRROR = 0xc000
+LENGTH_OF_PROGRAM_ROM = 0x4000
+HEADER = b"\xb6\x10\x00\xb6\x10\x00"
 
 
 class TR707View(BinaryView):
@@ -16,24 +24,40 @@ class TR707View(BinaryView):
     @classmethod
     def is_valid_for_data(self, data):
         """ assumes the first operation is to reset the LCD """
+        rom = data.read(0, LENGTH_OF_PROGRAM_ROM)
 
-        header = data.read(0, 6)
-        print("Header: ", header)
-        if len(header) < 6:
+        if rom[0:6] != HEADER:
             return False
-        return header == b"\xb6\x10\x00\xb6\x10\x00"
+
+        if len(rom) < LENGTH_OF_PROGRAM_ROM:
+            print("Found 707 ROM, but it's too short. Must be $%.x bytes" % LENGTH_OF_PROGRAM_ROM)
+            return False
+
+        return True
 
     def init(self):
         try:
-            # Add the ROM
-            self.add_auto_segment(0x8000, 0x4000, 0, 0x4000,
-                                  SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable | SegmentFlag.SegmentContainsCode)
 
-            # and it's mirror
-            self.add_auto_segment(0xc000, 0x4000, 0, 0x4000,
-                                  SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable | SegmentFlag.SegmentContainsCode)
+            rom_flags = SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable  # | SegmentFlag.SegmentContainsCode
+            self.add_auto_segment(
+                START_OF_PROGRAM_ROM,
+                LENGTH_OF_PROGRAM_ROM,
+                START_OF_BINARY,
+                LENGTH_OF_PROGRAM_ROM,
+                rom_flags
+            )
 
-            self.add_entry_point(0x8000)
+            # and the Program ROM mirror
+            self.add_auto_segment(
+                START_OF_PROGRAM_ROM_MIRROR,
+                LENGTH_OF_PROGRAM_ROM,
+                START_OF_BINARY,
+                LENGTH_OF_PROGRAM_ROM,
+                rom_flags
+            )
+
+            self.define_auto_symbol(Symbol(SymbolType.FunctionSymbol, START_OF_PROGRAM_ROM, "_start"))
+            self.add_entry_point(START_OF_PROGRAM_ROM)
 
             return True
         except:
@@ -44,6 +68,7 @@ class TR707View(BinaryView):
         return True
 
     def perform_get_entry_point(self):
-        return 0x8000
+        return START_OF_PROGRAM_ROM
 
-
+    def perform_get_address_size(self):
+        return 8
