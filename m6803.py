@@ -183,7 +183,6 @@ class M6803(Architecture):
         return b"\x01" * len(data)
 
     def get_instruction_info(self, data: bytes, address: int):
-        log_debug("GII bytes,addr : %s, $%.4x" % (data, address))
         label, length, value, _ = parse_instruction(data, address)
 
         if label == "???":
@@ -191,12 +190,13 @@ class M6803(Architecture):
 
         result = InstructionInfo()
         result.length = 1 + length
-        log_debug("GII length: %d" % result.length)
 
         if label in branching_instructions:
             relative = struct.unpack("b", data[1:2])[0]
+            
             # Does branching wrap at EOM/BOM? would anyone put branches there anyway?
-            destination = (address + relative) & 0xffff
+            destination = (address + relative + 2) & 0xffff
+
             log_debug("Branch '%s' destination $%.4x" % (label, destination))
             result.add_branch(BranchType.TrueBranch, destination)
             result.add_branch(BranchType.FalseBranch, address + result.length)
@@ -205,8 +205,6 @@ class M6803(Architecture):
 
     def get_instruction_text(self, data, address) -> [[any], int]:
         label, length, value, operand = parse_instruction(data, address)
-
-        log_debug("GIT: opcode(len): %s(%d)" % (label, length))
 
         if label == "???":
             return None
