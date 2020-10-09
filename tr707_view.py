@@ -1,5 +1,5 @@
 from binaryninja.binaryview import BinaryView
-from binaryninja.log import log_error
+from binaryninja.log import (log_error, log_warn)
 from binaryninja.types import Symbol
 from binaryninja.enums import (SegmentFlag, SymbolType)
 from binaryninja.architecture import Architecture
@@ -30,7 +30,7 @@ class TR707View(BinaryView):
             return False
 
         if len(rom) < LENGTH_OF_PROGRAM_ROM:
-            print("Found 707 ROM, but it's too short. Must be $%.x bytes" % LENGTH_OF_PROGRAM_ROM)
+            log_warn("Found 707 ROM, but it's too short. Must be $%.x bytes" % LENGTH_OF_PROGRAM_ROM)
             return False
 
         return True
@@ -38,7 +38,7 @@ class TR707View(BinaryView):
     def init(self):
         try:
 
-            rom_flags = SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable  # | SegmentFlag.SegmentContainsCode
+            rom_flags = SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable | SegmentFlag.SegmentContainsCode
             self.add_auto_segment(
                 START_OF_PROGRAM_ROM,
                 LENGTH_OF_PROGRAM_ROM,
