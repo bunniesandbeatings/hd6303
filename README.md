@@ -12,3 +12,5 @@ Includes a default Binary View that will detect the [Roland TR 707](https://en.w
 - [ ] Implement LLIL methods
 - [ ] Map 707 Ram and Memory Registers
 - [ ] Hack a 707 and see if this even worked.
+
+Opcode Count: **11/221**

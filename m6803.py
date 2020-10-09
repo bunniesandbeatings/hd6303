@@ -72,9 +72,11 @@ def operand_token_none():
 
 instructions = {
     0x01: {"label": "nop", "token": operand_token_none()},
+    0x08: {"label": "inx", "token": operand_token_none()},
     0x5f: {"label": "clrb", "token": operand_token_inherent()},
     0x86: {"label": "ldaa", "token": operand_token_immediate_byte()},
     0x8e: {"label": "lds", "token": operand_token_immediate_word()},
+    0x8c: {"label": "cpx", "token": operand_token_immediate_word()},
     0xb6: {"label": "ldaa", "token": operand_token_extended()},
     0xc6: {"label": "ldab", "token": operand_token_immediate_byte()},
     0xce: {"label": "ldx", "token": operand_token_immediate_word()},
