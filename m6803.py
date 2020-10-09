@@ -59,6 +59,18 @@ def operand_token_immediate_byte():
     return operand_byte_address()
 
 
+def operand_token_index():
+    return 1, lambda operand: [
+        InstructionTextToken(
+            InstructionTextTokenType.PossibleAddressToken,
+            "$%.2x" % operand,
+            operand
+        ),
+        InstructionTextToken(InstructionTextTokenType.TextToken, ", "),
+        InstructionTextToken(InstructionTextTokenType.RegisterToken, "x")
+    ]
+
+
 def operand_token_inherent():
     return operand_token_none()
 
@@ -75,6 +87,7 @@ instructions = {
     0xb6: {"label": "ldaa", "token": operand_token_extended()},
     0xc6: {"label": "ldab", "token": operand_token_immediate_byte()},
     0xce: {"label": "ldx", "token": operand_token_immediate_word()},
+    0xe7: {"label": "stab", "token": operand_token_index()},
     0xfd: {"label": "std", "token": operand_token_extended()},
 }
 
@@ -186,7 +199,7 @@ class M6803(Architecture):
 
         return result
 
-    def get_instruction_text(self, data, address):
+    def get_instruction_text(self, data, address) -> [[any], int]:
         label, length, value, operand = parse_instruction(data, address)
 
         log_debug("opcode(len): %s(%d)" % (label, length))
