@@ -1,11 +1,14 @@
 import struct
-from binaryninja.log import log_error
+from binaryninja.log import log_error, log_debug
 
 from binaryninja.architecture import Architecture
 from binaryninja.function import RegisterInfo, InstructionInfo, InstructionTextToken
 from binaryninja.enums import (BranchType, InstructionTextTokenType,
                                FlagRole, SymbolType,
                                Endianness)
+from typing import (Callable, Tuple, Optional)
+
+OperandFunction = Callable[[int], any]  # FIXME: can we build a Token base type?
 
 
 # NONE = 0
@@ -24,8 +27,8 @@ from binaryninja.enums import (BranchType, InstructionTextTokenType,
 #     il.load(1, il.const_pointer(2, value))
 #
 
-def operand_word_address(operand):
-    return [
+def operand_word_address():
+    return 2, lambda operand: [
         InstructionTextToken(
             InstructionTextTokenType.PossibleAddressToken,
             "$%.4x" % operand,
@@ -34,8 +37,8 @@ def operand_word_address(operand):
     ]
 
 
-def operand_byte_address(operand):
-    return [
+def operand_byte_address():
+    return 1, lambda operand: [
         InstructionTextToken(
             InstructionTextTokenType.PossibleAddressToken,
             "$%.2x" % operand,
@@ -44,35 +47,35 @@ def operand_byte_address(operand):
     ]
 
 
-def operand_token_extended(operand):
-    return operand_word_address(operand)
+def operand_token_extended():
+    return operand_word_address()
 
 
-def operand_token_immediate_word(operand):
-    return operand_word_address(operand)
+def operand_token_immediate_word():
+    return operand_word_address()
 
 
-def operand_token_immediate_byte(operand):
-    return operand_byte_address(operand)
+def operand_token_immediate_byte():
+    return operand_byte_address()
 
 
-def operand_token_inherent(operand):
-    return operand_token_none(operand)
+def operand_token_inherent():
+    return operand_token_none()
 
 
-def operand_token_none(operand):
-    return []
+def operand_token_none():
+    return 0, lambda: []
 
 
 instructions = {
-    0x01: {"label": "nop", "length": 1, "tokenFn": operand_token_none},
-    0x5f: {"label": "clrb", "length": 1, "tokenFn": operand_token_inherent},
-    0x86: {"label": "ldaa", "length": 2, "tokenFn": operand_token_immediate_byte},
-    0x8e: {"label": "lds", "length": 3, "tokenFn": operand_token_immediate_word},
-    0xb6: {"label": "ldaa", "length": 3, "tokenFn": operand_token_extended},
-    0xc6: {"label": "ldab", "length": 2, "tokenFn": operand_token_immediate_byte},
-    0xce: {"label": "ldx", "length": 3, "tokenFn": operand_token_immediate_word},
-    0xfd: {"label": "std", "length": 3, "tokenFn": operand_token_extended},
+    0x01: {"label": "nop", "token": operand_token_none()},
+    0x5f: {"label": "clrb", "token": operand_token_inherent()},
+    0x86: {"label": "ldaa", "token": operand_token_immediate_byte()},
+    0x8e: {"label": "lds", "token": operand_token_immediate_word()},
+    0xb6: {"label": "ldaa", "token": operand_token_extended()},
+    0xc6: {"label": "ldab", "token": operand_token_immediate_byte()},
+    0xce: {"label": "ldx", "token": operand_token_immediate_word()},
+    0xfd: {"label": "std", "token": operand_token_extended()},
 }
 
 
@@ -80,23 +83,28 @@ def word_as_ord(word):
     return struct.unpack(">H", word)[0]
 
 
-def parse_instruction(data, address):
+def parse_instruction(data: any, address: any) -> Tuple[str, int, Optional[int], OperandFunction]:
+    log_debug("Parsing opcode: %.2x" % data[0])
     instruction = instructions.get(data[0], None)
     if not instruction:
         instruction = {
             "label": "???",
-            "length": 1,
-            "tokenFn": lambda data: [],
+            "token": operand_token_none(),
         }
-    length = instruction["length"]
+    else:
+        log_debug("Instruction Found: %s" % instruction["label"])
+
+    label = instruction["label"]
+    length = instruction["token"][0]
+    operand = instruction["token"][1]
 
     value = None
-    if length == 2:
+    if length == 1:
         value = ord(data[1:2])
-    elif length == 3:
-        value = word_as_ord(data[1:length])
+    elif length == 2:
+        value = word_as_ord(data[1:length + 1])
 
-    return instruction, value
+    return label, length, value, operand
 
 
 def text_opcode(label):
@@ -171,28 +179,26 @@ class M6803(Architecture):
         return b"\x01" * len(data)
 
     def get_instruction_info(self, data, address):
-        instruction, _ = parse_instruction(data, address)
+        _, length, _, _ = parse_instruction(data, address)
 
         result = InstructionInfo()
-        result.length = instruction["length"]
+        result.length = 1 + length
 
         return result
 
     def get_instruction_text(self, data, address):
-        instruction, value = parse_instruction(data, address)
+        label, length, value, operand = parse_instruction(data, address)
 
-        if instruction is None:
-            return None
+        log_debug("opcode(len): %s(%d)" % (label, length))
 
-        print(instruction)
+        if value is not None:
+            log_debug("Value: %.4x" % value)
 
-        token_function = instruction["tokenFn"]
-        length = instruction["length"]
-        label = instruction["label"]
         tokens = [text_opcode(label)]
-        tokens += token_function(value)
+        if value is not None:
+            tokens += operand(value)
 
-        return tokens, length
+        return tokens, 1 + length
 
     # def get_instruction_low_level_il(self, data, address, il):
     #     instruction, value = parse_instruction(data, address)
