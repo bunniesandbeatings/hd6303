@@ -120,12 +120,12 @@ def operand_token_direct():
     return operand_byte_address()
 
 
-
 instructions = {
 
-    # -- Motorola 6801/03 --
-
+    0x00: {},
     0x01: {"label": "nop", "token": operand_token_none()},
+    0x02: {},
+    0x03: {},
     0x08: {"label": "inx", "token": operand_token_none()},
     0x09: {"label": "dex", "token": operand_token_none()},
     0x0c: {"label": "clc", "token": operand_token_inherent()},
@@ -134,35 +134,77 @@ instructions = {
     0x0f: {"label": "sei", "token": operand_token_inherent()},
     0x10: {"label": "sba", "token": operand_token_inherent()},
     0x11: {"label": "cba", "token": operand_token_inherent()},
+    0x12: {},
+    0x13: {},
+    0x14: {},
+    0x15: {},
+    0x18: {"label": "xgdx", "token": operand_token_none()},  # HD8303
+    0x1c: {},
+    0x1d: {},
+    0x1e: {},
+    0x1f: {},
     0x26: {"label": "bne", "token": operand_token_relative()},
     0x40: {"label": "nega", "token": operand_token_none()},
+    0x41: {},
+    0x42: {},
     0x43: {"label": "coma", "token": operand_token_none()},
     0x44: {"label": "lsra", "token": operand_token_none()},
+    0x45: {},
     0x46: {"label": "rora", "token": operand_token_none()},
     0x47: {"label": "asra", "token": operand_token_none()},
     0x48: {"label": "asla", "token": operand_token_none()},
     0x49: {"label": "rola", "token": operand_token_none()},
     0x4a: {"label": "deca", "token": operand_token_none()},
+    0x4b: {},
     0x4c: {"label": "inca", "token": operand_token_none()},
     0x4d: {"label": "tsta", "token": operand_token_none()},
+    0x4e: {},
     0x4f: {"label": "clra", "token": operand_token_inherent()},
     0x50: {"label": "negb", "token": operand_token_none()},
+    0x51: {},
+    0x52: {},
     0x53: {"label": "comb", "token": operand_token_none()},
     0x54: {"label": "lsrb", "token": operand_token_none()},
+    0x55: {},
     0x56: {"label": "rorb", "token": operand_token_none()},
     0x57: {"label": "asrb", "token": operand_token_none()},
     0x58: {"label": "aslb", "token": operand_token_none()},
     0x59: {"label": "rolb", "token": operand_token_none()},
     0x5a: {"label": "decb", "token": operand_token_none()},
+    0x5b: {},
     0x5c: {"label": "incb", "token": operand_token_none()},
     0x5d: {"label": "tstb", "token": operand_token_none()},
+    0x5e: {},
     0x5f: {"label": "clrb", "token": operand_token_inherent()},
     0x6f: {"label": "clr", "token": operand_token_indexed()},
+    0x70: {"label": "neg", "token": operand_token_extended()},
+    0x72: {"label": "oim", "token": operand_token_direct_memory()},  # HD8303
+    0x73: {"label": "com", "token": operand_token_extended()},
+    0x74: {"label": "lsr", "token": operand_token_extended()},
+    0x76: {"label": "ror", "token": operand_token_extended()},
+    0x77: {"label": "asr", "token": operand_token_extended()},
+    0x78: {"label": "asl", "token": operand_token_extended()},
+    0x79: {"label": "rol", "token": operand_token_extended()},
+    0x7a: {"label": "dec", "token": operand_token_extended()},
+    0x7c: {"label": "inc", "token": operand_token_extended()},
+    0x7d: {"label": "tst", "token": operand_token_extended()},
+    0x7e: {"label": "jmp", "token": operand_token_extended()},
     0x7f: {"label": "clr", "token": operand_token_extended()},
+    0x80: {"label": "suba", "token": operand_token_immediate_byte()},
+    0x81: {"label": "cmpa", "token": operand_token_immediate_byte()},
+    0x82: {"label": "sbca", "token": operand_token_immediate_byte()},
+    0x83: {"label": "subd", "token": operand_token_immediate_word()},
+    0x84: {"label": "anda", "token": operand_token_immediate_byte()},
+    0x85: {"label": "bita", "token": operand_token_immediate_byte()},
     0x86: {"label": "ldaa", "token": operand_token_immediate_byte()},
+    0x87: {},
+    0x88: {"label": "eora", "token": operand_token_immediate_byte()},
+    0x89: {"label": "adca", "token": operand_token_immediate_byte()},
+    0x8a: {"label": "oraa", "token": operand_token_immediate_byte()},
+    0x8b: {"label": "adda", "token": operand_token_immediate_byte()},
     0x8c: {"label": "cpx", "token": operand_token_immediate_word()},
     0x8e: {"label": "lds", "token": operand_token_immediate_word()},
-
+    0x8f: {},
     0x90: {"label": "suba", "token": operand_token_direct()},
     0x91: {"label": "cmpa", "token": operand_token_direct()},
     0x92: {"label": "sbca", "token": operand_token_direct()},
@@ -171,7 +213,6 @@ instructions = {
     0x95: {"label": "bita", "token": operand_token_direct()},
     0x96: {"label": "ldaa", "token": operand_token_direct()},
     0x97: {"label": "staa", "token": operand_token_direct()},
-
     0x98: {"label": "staa", "token": operand_token_direct()},
     0x99: {"label": "staa", "token": operand_token_direct()},
     0x9a: {"label": "oraa", "token": operand_token_direct()},
@@ -180,24 +221,22 @@ instructions = {
     0x9d: {"label": "jsr", "token": operand_token_direct()},
     0x9e: {"label": "lds", "token": operand_token_direct()},
     0x9f: {"label": "sts", "token": operand_token_direct()},
-
     0xa7: {"label": "staa", "token": operand_token_indexed()},
     0xb6: {"label": "ldaa", "token": operand_token_extended()},
     0xbd: {"label": "jsr", "token": operand_token_extended()},
     0xc3: {"label": "addd", "token": operand_token_immediate_word()},
     0xc6: {"label": "ldab", "token": operand_token_immediate_byte()},
+    0xc7: {},
     0xcc: {"label": "ldd", "token": operand_token_immediate_word()},
+    0xcd: {},
     0xce: {"label": "ldx", "token": operand_token_immediate_word()},
+    0xcf: {},
     0xd7: {"label": "stab", "token": operand_token_direct()},
     0xdd: {"label": "std", "token": operand_token_direct()},
     0xe7: {"label": "stab", "token": operand_token_indexed()},
     0xed: {"label": "std", "token": operand_token_indexed()},
     0xfd: {"label": "std", "token": operand_token_extended()},
 
-    # -- Hitachi HD8303 Specials --
-
-    0x18: {"label": "xgdx", "token": operand_token_none()},
-    0x72: {"label": "oim", "token": operand_token_direct_memory()},
 }
 branching_instructions = ["bne"]
 
@@ -308,9 +347,10 @@ class M6803(Architecture):
             log_debug("Branch '%s' destination $%.4x" % (label, destination))
             result.add_branch(BranchType.TrueBranch, destination)
             result.add_branch(BranchType.FalseBranch, address + result.length)
-
         elif label == "jsr":
             result.add_branch(BranchType.CallDestination, value)
+        elif label == "jmp":
+            result.add_branch(BranchType.UnconditionalBranch, value)
 
         return result
 
