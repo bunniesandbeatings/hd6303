@@ -80,7 +80,7 @@ def operand_token_direct_memory():
         InstructionTextToken(InstructionTextTokenType.TextToken, "#"),
         InstructionTextToken(
             InstructionTextTokenType.IntegerToken,
-            "$%.4x" % (operand >> 8),
+            "$%.2x" % (operand >> 8),
             operand
         ),
         InstructionTextToken(InstructionTextTokenType.TextToken, ", "),
@@ -143,7 +143,26 @@ instructions = {
     0x1d: {},
     0x1e: {},
     0x1f: {},
+
+
+
+    0x20: {"label": "bra", "token": operand_token_relative()},
+    0x21: {"label": "brn", "token": operand_token_relative()},
+    0x22: {"label": "bhi", "token": operand_token_relative()},
+    0x23: {"label": "bls", "token": operand_token_relative()},
+    0x24: {"label": "bcc", "token": operand_token_relative()},
+    0x25: {"label": "bcs", "token": operand_token_relative()},
     0x26: {"label": "bne", "token": operand_token_relative()},
+    0x27: {"label": "beq", "token": operand_token_relative()},
+    0x28: {"label": "bvc", "token": operand_token_relative()},
+    0x29: {"label": "bvs", "token": operand_token_relative()},
+    0x2a: {"label": "bpl", "token": operand_token_relative()},
+    0x2b: {"label": "bmi", "token": operand_token_relative()},
+    0x2c: {"label": "bge", "token": operand_token_relative()},
+    0x2d: {"label": "blt", "token": operand_token_relative()},
+    0x2e: {"label": "bgt", "token": operand_token_relative()},
+    0x2f: {"label": "ble", "token": operand_token_relative()},
+
     0x40: {"label": "nega", "token": operand_token_none()},
     0x41: {},
     0x42: {},
@@ -186,6 +205,7 @@ instructions = {
     0x78: {"label": "asl", "token": operand_token_extended()},
     0x79: {"label": "rol", "token": operand_token_extended()},
     0x7a: {"label": "dec", "token": operand_token_extended()},
+    0x7b: {"label": "tim", "token": operand_token_direct_memory()},  # HD8303
     0x7c: {"label": "inc", "token": operand_token_extended()},
     0x7d: {"label": "tst", "token": operand_token_extended()},
     0x7e: {"label": "jmp", "token": operand_token_extended()},
@@ -238,8 +258,12 @@ instructions = {
     0xfd: {"label": "std", "token": operand_token_extended()},
 
 }
-branching_instructions = ["bne"]
-
+branching_instructions = [
+    "bra", "brn", "bhi", "bls",
+    "bcc", "bcs", "bne", "beq",
+    "bvc", "bvs", "bpl", "bmi",
+    "bge", "blt", "bgt", "ble",
+]
 
 def word_as_ord(word):
     return struct.unpack(">H", word)[0]
