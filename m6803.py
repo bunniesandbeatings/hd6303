@@ -460,9 +460,9 @@ class M6803(Architecture):
         "x": RegisterInfo("x", 1),
 
         # Accumulator
-        'd': RegisterInfo('a', 2),
-        'a': RegisterInfo('a', 2, 0),
-        'b': RegisterInfo('a', 2, 1),
+        'd': RegisterInfo('d', 2),
+        'a': RegisterInfo('d', 1, 0),
+        'b': RegisterInfo('d', 1, 1),
 
         'ccr': RegisterInfo('ccr', 1)
     }
