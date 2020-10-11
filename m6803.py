@@ -6,7 +6,7 @@ from binaryninja.architecture import Architecture
 from binaryninja.function import RegisterInfo, InstructionInfo, InstructionTextToken
 from binaryninja.enums import (BranchType, InstructionTextTokenType,
                                FlagRole, SymbolType,
-                               Endianness)
+                               Endianness, LowLevelILFlagCondition)
 from typing import (Callable, Tuple, Optional)
 from enum import Enum, auto
 
@@ -137,8 +137,38 @@ operand_detail[AddressingMode.DIRECT_MEMORY] = [
 ]
 
 
-def get_operand(type):
-    return operand_detail[type]
+def get_operand(mode: AddressingMode):
+    return operand_detail[mode]
+
+
+il_operand_detail = dict()
+il_operand_detail[AddressingMode.NONE] = lambda il, value: None
+il_operand_detail[AddressingMode.INHERENT] = lambda il, value: None
+il_operand_detail[AddressingMode.EXTENDED] = lambda il, value: il.const_pointer(2, value)
+il_operand_detail[AddressingMode.IMMEDIATE_BYTE] = lambda il, value: il.const(1, value)
+il_operand_detail[AddressingMode.IMMEDIATE_WORD] = lambda il, value: il.const(2, value)
+
+
+# il_operand_detail[AddressingMode.IMMEDIATE_INDEXED] = lambda il, value: il.const_pointer(2, value)
+
+
+def get_il_operand(mode: AddressingMode):
+    return il_operand_detail.get(mode, None)
+
+
+il_instructions = {
+    "ldaa": lambda il, operand, mode: il.set_reg(1, "a", operand, flags="nzv"),
+    "ldab": lambda il, operand, mode: il.set_reg(1, "b", operand, flags="nzv"),
+    "tpa": lambda il, operand, mode: il.set_reg(2, "a", il.reg(2, "ccr")),
+    "tap": lambda il, operand, mode: il.set_reg(2, "ccr", il.reg(2, "a")),
+    # "sei": lambda il, operand, mode: il.set_flag("i", il.const(0, 1)),
+    # "jsr": lambda il, operand: il.call(operand),
+    # "rts": lambda il, operand: il.ret(il.add(2, il.pop(2), il.const(2, 1))), # FIXME
+}
+
+
+def get_il_instruction(instruction: str):
+    return il_instructions.get(instruction, None)
 
 
 instructions = {
@@ -414,14 +444,10 @@ def word_as_ord(word):
 
 
 def parse_instruction(data: any) -> Tuple[Optional[str], int, Optional[int], Optional[Tokenizer], AddressingMode]:
-    log_debug("Parsing opcode: %.2x" % data[0])
-
     instruction = instructions.get(data[0], None)
 
     if not instruction:
         return None, 1, None, None, AddressingMode.NONE
-    else:
-        log_debug("Instruction Found: %s" % instruction["label"])
 
     label = instruction["label"]
     mode = instruction["mode"]
@@ -541,35 +567,54 @@ class M6803(Architecture):
 
         return tokens, 1 + length
 
-    # Keeps log output quiet
     def get_instruction_low_level_il(self, data, address, il):
-        _, length, _, _, _ = parse_instruction(data)
+        label, operand_length, operand_value, tokenizer, mode = parse_instruction(data)
 
-        return 1 + length
+        length = operand_length+1
+        il_operand_fn = get_il_operand(mode)
+
+        # FIXME: remove after full impl.
+        if il_operand_fn is None:
+            log_debug("Operand: '%s' not implemented" % mode)
+            return length
+
+        log_debug("Operand: '%s'" % mode)
+
+        il_operand = il_operand_fn(il, operand_value)
+
+        il_instruction_fn = get_il_instruction(label)
+        # FIXME: remove after full impl.
+        if il_instruction_fn is None:
+            log_debug("Instr: '%s' not implemented" % label)
+            il.append(il.nop())
+            return length
+
+        log_debug("Instr: '%s'" % label)
+        il_instruction = il_instruction_fn(il, il_operand, mode)
+
+        if isinstance(il_instruction, list):
+            for i in il_instruction:
+                il.append(i)
+        elif il_instruction is not None:
+            il.append(il_instruction)
+
+        return length
 
     # def get_instruction_low_level_il(self, data, address, il):
-    #     instruction, value = parse_instruction(data, address)
+    #     label, length, operand_value, tokenizer, mode = parse_instruction(data)
     #
-    #     operand = instruction["operandIL"](il, value)
-    #     instruction_il = instruction["instructionIL"](il, operand)
-    #
-    #     if isinstance(instruction_il, list):
-    #         for i in instruction_il:
-    #             il.append(i)
-    #     elif instruction_il is not None:
-    #         il.append(instruction_il)
-    #
-    #     return instruction["length"]
+    #     return length + 1
 
-    # flags_required_for_flag_condition = {
-    #     LowLevelILFlagCondition.LLFC_NEG: ["n"],
-    #     LowLevelILFlagCondition.LLFC_POS: ["n"],
-    #     LowLevelILFlagCondition.LLFC_O: ["v"],
-    #     LowLevelILFlagCondition.LLFC_NO: ["v"],
-    #     LowLevelILFlagCondition.LLFC_E: ["z"],
-    #     LowLevelILFlagCondition.LLFC_NE: ["z"],
-    #     LowLevelILFlagCondition.LLFC_ULT: ["n", "v"],
-    #     LowLevelILFlagCondition.LLFC_ULE: ["z", "n", "v"],
-    #     LowLevelILFlagCondition.LLFC_UGE: ["v", "n"],
-    #     LowLevelILFlagCondition.LLFC_UGT: ["z", "n", "v"],
-    # }
+
+    flags_required_for_flag_condition = {
+        LowLevelILFlagCondition.LLFC_NEG: ["n"],
+        LowLevelILFlagCondition.LLFC_POS: ["n"],
+        LowLevelILFlagCondition.LLFC_O: ["v"],
+        LowLevelILFlagCondition.LLFC_NO: ["v"],
+        LowLevelILFlagCondition.LLFC_E: ["z"],
+        LowLevelILFlagCondition.LLFC_NE: ["z"],
+        LowLevelILFlagCondition.LLFC_ULT: ["n", "v"],
+        LowLevelILFlagCondition.LLFC_ULE: ["z", "n", "v"],
+        LowLevelILFlagCondition.LLFC_UGE: ["v", "n"],
+        LowLevelILFlagCondition.LLFC_UGT: ["z", "n", "v"],
+    }
