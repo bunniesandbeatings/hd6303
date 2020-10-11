@@ -246,10 +246,10 @@ instructions = {
     0x65: {"label": "eim", "mode": AddressingMode.IMMEDIATE_INDEXED},  # HD8303
     0x66: {"label": "ror", "mode": AddressingMode.INDEXED},
     0x67: {"label": "asr", "mode": AddressingMode.INDEXED},
-    0x68: {"label": "asl", "mode": AddressingMode.IMMEDIATE_INDEXED},  # HD8303
+    0x68: {"label": "asl", "mode": AddressingMode.INDEXED},
     0x69: {"label": "rol", "mode": AddressingMode.INDEXED},
     0x6a: {"label": "dec", "mode": AddressingMode.INDEXED},
-    0x6b: {"label": "tim", "mode": AddressingMode.INDEXED},
+    0x6b: {"label": "tim", "mode": AddressingMode.IMMEDIATE_INDEXED},  # HD8303
     0x6c: {"label": "inc", "mode": AddressingMode.INDEXED},
     0x6d: {"label": "tst", "mode": AddressingMode.INDEXED},
     0x6e: {"label": "jmp", "mode": AddressingMode.INDEXED},  # FIXME in IL
