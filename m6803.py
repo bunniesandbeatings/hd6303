@@ -477,13 +477,13 @@ class M6803(Architecture):
 
     regs = {
         # Stack Pointer
-        'sp': RegisterInfo('sp', 2),
+        's': RegisterInfo('s', 2),
 
         # program counter
-        'pc': RegisterInfo('pc', 2),
+        'p': RegisterInfo('p', 2),
 
         # Index register
-        "x": RegisterInfo("x", 1),
+        "x": RegisterInfo("x", 2),
 
         # Accumulator
         'd': RegisterInfo('d', 2),
