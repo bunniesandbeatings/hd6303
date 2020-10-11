@@ -4,22 +4,26 @@ from binaryninja.log import log_error, log_debug
 
 from binaryninja.architecture import Architecture
 from binaryninja.function import RegisterInfo, InstructionInfo, InstructionTextToken
-from binaryninja.enums import (BranchType, InstructionTextTokenType,
-                               FlagRole, SymbolType,
-                               Endianness, LowLevelILFlagCondition)
+from binaryninja.enums import (
+    BranchType, InstructionTextTokenType,
+    FlagRole, SymbolType,
+    Endianness, LowLevelILFlagCondition, LowLevelILOperation)
+from binaryninja.lowlevelil import LowLevelILFunction, LowLevelILLabel
+
 from typing import (Callable, Tuple, Optional)
 from enum import Enum, auto
 
+ARCHITECTURE_STRING = 'm6803'
+
+try:
+    import pydevd_pycharm
+
+    pydevd_pycharm.settrace('localhost', port=33333, stdoutToServer=True, stderrToServer=True, suspend=False)
+except:
+    pass
+
 Tokenizer = Callable[[int], any]  # FIXME: can we build a Token base type?
 
-
-# def il_operand_none():
-#     pass
-#
-#
-# def il_operand_extend(il, value):
-#     il.load(1, il.const_pointer(2, value))
-#
 
 class AddressingMode(Enum):
     NONE = auto()
@@ -33,6 +37,8 @@ class AddressingMode(Enum):
     DIRECT = auto()  # opc $CA           Zero Page
     DIRECT_MEMORY = auto()  # opc #$FF,$33      Zero Page [ see AIM, OIM, EIM, TIM opcodes ]
 
+
+ILInstructionGenerator = Callable[[LowLevelILFunction, any, AddressingMode], any]
 
 operand_detail = dict()
 
@@ -141,33 +147,74 @@ def get_operand(mode: AddressingMode):
     return operand_detail[mode]
 
 
+def relative(il, value):
+    log_debug("AAA: %.2x" % value)
+    return il.const_pointer(2, value)
+
+
 il_operand_detail = dict()
 il_operand_detail[AddressingMode.NONE] = lambda il, value: None
 il_operand_detail[AddressingMode.INHERENT] = lambda il, value: None
 il_operand_detail[AddressingMode.EXTENDED] = lambda il, value: il.const_pointer(2, value)
 il_operand_detail[AddressingMode.IMMEDIATE_BYTE] = lambda il, value: il.const(1, value)
 il_operand_detail[AddressingMode.IMMEDIATE_WORD] = lambda il, value: il.const(2, value)
-
-
-# il_operand_detail[AddressingMode.IMMEDIATE_INDEXED] = lambda il, value: il.const_pointer(2, value)
+il_operand_detail[AddressingMode.INDEXED] = lambda il, value: il.load(2, il.add(2, il.const(1, value), il.reg(2, "x")))
+il_operand_detail[AddressingMode.RELATIVE] = relative
 
 
 def get_il_operand(mode: AddressingMode):
     return il_operand_detail.get(mode, None)
 
 
+def cond_branch(il, condition, dest):
+    true_branch = None
+
+    log_debug("Condition dest: `%.2x`" % dest.index)
+
+    if il[dest].operation == LowLevelILOperation.LLIL_CONST:
+        true_branch = il.get_label_for_address(Architecture[ARCHITECTURE_STRING], il[dest].constant)
+
+    if true_branch is None:
+        true_branch = LowLevelILLabel()
+        indirect = True
+    else:
+        indirect = False
+
+    false_branch = LowLevelILLabel()
+
+    il.append(il.if_expr(condition, true_branch, false_branch))
+
+    if indirect:
+        il.mark_label(true_branch)
+        il.append(il.jump(dest))
+    il.mark_label(false_branch)
+
+
 il_instructions = {
     "ldaa": lambda il, operand, mode: il.set_reg(1, "a", operand, flags="nzv"),
     "ldab": lambda il, operand, mode: il.set_reg(1, "b", operand, flags="nzv"),
-    "tpa": lambda il, operand, mode: il.set_reg(2, "a", il.reg(2, "ccr")),
-    "tap": lambda il, operand, mode: il.set_reg(2, "ccr", il.reg(2, "a")),
+    "lds": lambda il, operand, mode: il.set_reg(2, "s", operand, flags="nzv"),
+    "ldx": lambda il, operand, mode: il.set_reg(2, "x", operand, flags="nzv"),
+    "tpa": lambda il, operand, mode: il.set_reg(2, "d", il.reg(2, "ccr")),
+    "tap": lambda il, operand, mode: il.set_reg(2, "ccr", il.reg(2, "d"), flags="*"),
+    "std": lambda il, operand, mode: il.store(2, operand, il.reg(2, "d"), flags="nzv"),
+    "staa": lambda il, operand, mode: il.store(1, operand, il.reg(1, "a"), flags="nzv"),
+    "stab": lambda il, operand, mode: il.store(1, operand, il.reg(1, "b"), flags="nzv"),
+
+    "clra": lambda il, operand, mode: il.set_reg(1, "a", il.const(1, 0), flags="nzvc"),
+    "clrb": lambda il, operand, mode: il.set_reg(1, "b", il.const(1, 0), flags="nzvc"),
+
+    "inx": lambda il, operand, mode: il.set_reg(2, "x", il.add(2, il.reg(2, "x"), il.const(1, 1), flags="z")),
+    "cpx": lambda il, operand, mode: il.sub(2, il.reg(2, "x"), operand, flags="nzvc"),
+
+    "bne": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NE), operand),
     # "sei": lambda il, operand, mode: il.set_flag("i", il.const(0, 1)),
     # "jsr": lambda il, operand: il.call(operand),
     # "rts": lambda il, operand: il.ret(il.add(2, il.pop(2), il.const(2, 1))), # FIXME
 }
 
 
-def get_il_instruction(instruction: str):
+def get_il_instruction(instruction: str) -> ILInstructionGenerator:
     return il_instructions.get(instruction, None)
 
 
@@ -467,8 +514,14 @@ def opcode_token(label):
     return InstructionTextToken(InstructionTextTokenType.OpcodeToken, "%-7s " % label)
 
 
+def get_destination_from_relative_operation(address, data):
+    offset = struct.unpack("b", data[1:2])[0]
+    destination = (address + offset + 2) & 0xffff
+    return destination
+
+
 class M6803(Architecture):
-    name = "m6803"
+    name = ARCHITECTURE_STRING
     address_size = 2
     default_int_size = 1
     instr_alignment = 1
@@ -493,7 +546,7 @@ class M6803(Architecture):
         'ccr': RegisterInfo('ccr', 1)
     }
 
-    stack_pointer = 'sp'
+    stack_pointer = 's'
 
     flags = ["h", "i", "n", "z", "v", "c"]
     flag_roles = {
@@ -531,9 +584,7 @@ class M6803(Architecture):
         result.length = 1 + length
 
         if label in branching_instructions:  # Always Relative Addressing Mode
-            relative = struct.unpack("b", data[1:2])[0]
-            # Does branching wrap at EOM/BOM? would anyone put branches there anyway?
-            destination = (address + relative + 2) & 0xffff
+            destination = get_destination_from_relative_operation(address, data)
 
             result.add_branch(BranchType.TrueBranch, destination)
             result.add_branch(BranchType.FalseBranch, address + result.length)
@@ -567,10 +618,10 @@ class M6803(Architecture):
 
         return tokens, 1 + length
 
-    def get_instruction_low_level_il(self, data, address, il):
+    def get_instruction_low_level_il(self, data, address, il: LowLevelILFunction):
         label, operand_length, operand_value, tokenizer, mode = parse_instruction(data)
 
-        length = operand_length+1
+        length = operand_length + 1
         il_operand_fn = get_il_operand(mode)
 
         # FIXME: remove after full impl.
@@ -578,9 +629,13 @@ class M6803(Architecture):
             log_debug("Operand: '%s' not implemented" % mode)
             return length
 
-        log_debug("Operand: '%s'" % mode)
+        # log_debug("Operand: '%s'" % mode)
 
-        il_operand = il_operand_fn(il, operand_value)
+        if label in branching_instructions:  # Always Relative Addressing Mode
+            operand_destination = get_destination_from_relative_operation(address, data)
+            il_operand = il_operand_fn(il, operand_destination)
+        else:
+            il_operand = il_operand_fn(il, operand_value)
 
         il_instruction_fn = get_il_instruction(label)
         # FIXME: remove after full impl.
@@ -589,7 +644,7 @@ class M6803(Architecture):
             il.append(il.nop())
             return length
 
-        log_debug("Instr: '%s'" % label)
+        # log_debug("Instr: '%s'" % label)
         il_instruction = il_instruction_fn(il, il_operand, mode)
 
         if isinstance(il_instruction, list):
@@ -604,7 +659,6 @@ class M6803(Architecture):
     #     label, length, operand_value, tokenizer, mode = parse_instruction(data)
     #
     #     return length + 1
-
 
     flags_required_for_flag_condition = {
         LowLevelILFlagCondition.LLFC_NEG: ["n"],
