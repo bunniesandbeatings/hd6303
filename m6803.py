@@ -23,15 +23,15 @@ Tokenizer = Callable[[int], any]  # FIXME: can we build a Token base type?
 
 class AddressingMode(Enum):
     NONE = auto()
-    INHERENT = auto()
-    EXTENDED = auto()
-    IMMEDIATE_WORD = auto()
-    IMMEDIATE_BYTE = auto()
-    IMMEDIATE_INDEXED = auto()
-    INDEXED = auto()
-    RELATIVE = auto()
-    DIRECT = auto()
-    DIRECT_MEMORY = auto()
+    INHERENT = auto()  # opc
+    EXTENDED = auto()  # opc $10FF
+    IMMEDIATE_WORD = auto()  # opc #$10FF
+    IMMEDIATE_BYTE = auto()  # opc #$FF
+    IMMEDIATE_INDEXED = auto()  # opc #$FF,$33,x    [ see AIM, OIM, EIM, TIM opcodes ]
+    INDEXED = auto()  # opc #$FF,x
+    RELATIVE = auto()  # opc $<xx>         where $<xx> is within a signed byte of the current PC
+    DIRECT = auto()  # opc $CA           Zero Page
+    DIRECT_MEMORY = auto()  # opc #$FF,$33      Zero Page [ see AIM, OIM, EIM, TIM opcodes ]
 
 
 operand_detail = dict()
