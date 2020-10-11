@@ -8,7 +8,7 @@ from binaryninja.enums import (
     BranchType, InstructionTextTokenType,
     FlagRole, SymbolType,
     Endianness, LowLevelILFlagCondition, LowLevelILOperation)
-from binaryninja.lowlevelil import LowLevelILFunction, LowLevelILLabel
+from binaryninja.lowlevelil import LowLevelILFunction, LowLevelILLabel, LLIL_TEMP
 
 from typing import (Callable, Tuple, Optional)
 from enum import Enum, auto
@@ -147,11 +147,6 @@ def get_operand(mode: AddressingMode):
     return operand_detail[mode]
 
 
-def relative(il, value):
-    log_debug("AAA: %.2x" % value)
-    return il.const_pointer(2, value)
-
-
 il_operand_detail = dict()
 il_operand_detail[AddressingMode.NONE] = lambda il, value: None
 il_operand_detail[AddressingMode.INHERENT] = lambda il, value: None
@@ -159,7 +154,8 @@ il_operand_detail[AddressingMode.EXTENDED] = lambda il, value: il.const_pointer(
 il_operand_detail[AddressingMode.IMMEDIATE_BYTE] = lambda il, value: il.const(1, value)
 il_operand_detail[AddressingMode.IMMEDIATE_WORD] = lambda il, value: il.const(2, value)
 il_operand_detail[AddressingMode.INDEXED] = lambda il, value: il.load(2, il.add(2, il.const(1, value), il.reg(2, "x")))
-il_operand_detail[AddressingMode.RELATIVE] = relative
+il_operand_detail[AddressingMode.RELATIVE] = lambda il, value: il.const_pointer(2, value)
+il_operand_detail[AddressingMode.DIRECT] = lambda il, value: il.const_pointer(1, value)
 
 
 def get_il_operand(mode: AddressingMode):
@@ -168,8 +164,6 @@ def get_il_operand(mode: AddressingMode):
 
 def cond_branch(il, condition, dest):
     true_branch = None
-
-    log_debug("Condition dest: `%.2x`" % dest.index)
 
     if il[dest].operation == LowLevelILOperation.LLIL_CONST:
         true_branch = il.get_label_for_address(Architecture[ARCHITECTURE_STRING], il[dest].constant)
@@ -187,16 +181,24 @@ def cond_branch(il, condition, dest):
     if indirect:
         il.mark_label(true_branch)
         il.append(il.jump(dest))
+
     il.mark_label(false_branch)
 
 
 il_instructions = {
-    "ldaa": lambda il, operand, mode: il.set_reg(1, "a", operand, flags="nzv"),
-    "ldab": lambda il, operand, mode: il.set_reg(1, "b", operand, flags="nzv"),
-    "lds": lambda il, operand, mode: il.set_reg(2, "s", operand, flags="nzv"),
-    "ldx": lambda il, operand, mode: il.set_reg(2, "x", operand, flags="nzv"),
+    "addd": lambda il, operand, mode: il.set_reg(2, "d", il.add(2, il.reg(2, "d"), il.load(2, operand)), flags="nzvc"),
+
+    "ldaa": lambda il, operand, mode: il.set_reg(1, "a", il.load(1, operand), flags="nzv"),
+    "ldab": lambda il, operand, mode: il.set_reg(1, "b", il.load(1, operand), flags="nzv"),
+
+    "ldd": lambda il, operand, mode: il.set_reg(2, "d", il.load(2, operand), flags="nzv"),
+
+    "lds": lambda il, operand, mode: il.set_reg(2, "s", il.load(2, operand), flags="nzv"),
+    "ldx": lambda il, operand, mode: il.set_reg(2, "x", il.load(2, operand), flags="nzv"),
+
     "tpa": lambda il, operand, mode: il.set_reg(2, "d", il.reg(2, "ccr")),
     "tap": lambda il, operand, mode: il.set_reg(2, "ccr", il.reg(2, "d"), flags="*"),
+
     "std": lambda il, operand, mode: il.store(2, operand, il.reg(2, "d"), flags="nzv"),
     "staa": lambda il, operand, mode: il.store(1, operand, il.reg(1, "a"), flags="nzv"),
     "stab": lambda il, operand, mode: il.store(1, operand, il.reg(1, "b"), flags="nzv"),
@@ -205,12 +207,17 @@ il_instructions = {
     "clrb": lambda il, operand, mode: il.set_reg(1, "b", il.const(1, 0), flags="nzvc"),
 
     "inx": lambda il, operand, mode: il.set_reg(2, "x", il.add(2, il.reg(2, "x"), il.const(1, 1), flags="z")),
-    "cpx": lambda il, operand, mode: il.sub(2, il.reg(2, "x"), operand, flags="nzvc"),
+    "cpx": lambda il, operand, mode: il.sub(2, il.reg(2, "x"), il.load(2, operand), flags="nzvc"),  # Not sub_borrow?
 
     "bne": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NE), operand),
     # "sei": lambda il, operand, mode: il.set_flag("i", il.const(0, 1)),
     # "jsr": lambda il, operand: il.call(operand),
     # "rts": lambda il, operand: il.ret(il.add(2, il.pop(2), il.const(2, 1))), # FIXME
+    "xgdx": lambda il, operand, mode: [
+        il.set_reg(2, LLIL_TEMP(0), il.reg(2, "d")),
+        il.set_reg(2, "d", il.reg(2, "x")),
+        il.set_reg(2, "x", il.reg(2, LLIL_TEMP(0))),
+    ]
 }
 
 
@@ -644,7 +651,7 @@ class M6803(Architecture):
             il.append(il.nop())
             return length
 
-        # log_debug("Instr: '%s'" % label)
+        log_debug("%.4x    %s" % (address, label))
         il_instruction = il_instruction_fn(il, il_operand, mode)
 
         if isinstance(il_instruction, list):
