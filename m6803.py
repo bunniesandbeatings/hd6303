@@ -504,7 +504,7 @@ class M6803(Architecture):
         result = InstructionInfo()
         result.length = 1 + length
 
-        if label in branching_instructions:
+        if label in branching_instructions:  # Always Relative Addressing Mode
             relative = struct.unpack("b", data[1:2])[0]
             # Does branching wrap at EOM/BOM? would anyone put branches there anyway?
             destination = (address + relative + 2) & 0xffff
@@ -523,6 +523,9 @@ class M6803(Architecture):
                 result.add_branch(BranchType.UnconditionalBranch, operand_value)
             else:
                 result.add_branch(BranchType.UnresolvedBranch)
+
+        elif label in ["rts", "rti"]:
+            result.add_branch(BranchType.FunctionReturn)
 
         return result
 
