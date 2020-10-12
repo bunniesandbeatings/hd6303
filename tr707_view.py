@@ -1,7 +1,7 @@
 from binaryninja.binaryview import BinaryView
 from binaryninja.log import (log_error, log_warn)
 from binaryninja.types import Symbol
-from binaryninja.enums import (SegmentFlag, SymbolType)
+from binaryninja.enums import (SegmentFlag, SymbolType, SectionSemantics)
 from binaryninja.architecture import Architecture
 
 import traceback
@@ -38,7 +38,7 @@ class TR707View(BinaryView):
     def init(self):
         try:
 
-            rom_flags = SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable | SegmentFlag.SegmentContainsCode
+            rom_flags = SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable | SegmentFlag.SegmentDenyWrite
             self.add_auto_segment(
                 START_OF_PROGRAM_ROM,
                 LENGTH_OF_PROGRAM_ROM,
@@ -55,6 +55,14 @@ class TR707View(BinaryView):
                 LENGTH_OF_PROGRAM_ROM,
                 rom_flags
             )
+
+            self.add_auto_section(
+                "program",
+                START_OF_PROGRAM_ROM_MIRROR,
+                LENGTH_OF_PROGRAM_ROM,
+                SectionSemantics.ReadOnlyCodeSectionSemantics
+            )
+
 
             # Seriously looks as if the TR707 rom is designed to start at $C000
             self.define_auto_symbol(Symbol(SymbolType.FunctionSymbol, START_OF_PROGRAM_ROM_MIRROR, "_start"))
