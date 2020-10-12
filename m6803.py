@@ -170,12 +170,11 @@ il_operand_detail[AddressingMode.DIRECT_IMMEDIATE] = lambda il, value: [
     il.const(1, value >> 8),
     il.const_pointer(1, value & 0xff)
 ]
+il_operand_detail[AddressingMode.INDEXED_IMMEDIATE] = lambda il, value: [
+    il.const(1, value >> 8),
+    il.load(2, il.add(2, il.const(1, value & 0xff), il.reg(2, "x")))
+]
 
-
-# il_operand_detail[AddressingMode.INDEXED_IMMEDIATE] = lambda il, value: [
-#     il.const(1, value >> 8),
-#     il.load(2, il.add(2, il.const(1, value & 0xff), il.reg(2, "x")))
-# ]
 
 def get_il_operand(mode: AddressingMode):
     return il_operand_detail.get(mode, None)
