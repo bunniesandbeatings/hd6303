@@ -231,7 +231,7 @@ def push_state(il):
     il.append(il.push(1, il.reg(1, "xh")))
     il.append(il.push(1, il.reg(1, "a")))
     il.append(il.push(1, il.reg(1, "b")))
-    il.append(il.push(1, il.or_exp(1, il.reg(1, "ccr"), il.const(1, 0b11000000))))
+    il.append(il.push(1, il.or_expr(1, il.reg(1, "ccr"), il.const(1, 0b11000000))))
 
 
 def software_interrupt(il, operand):
@@ -364,7 +364,7 @@ il_instructions = {
     "tstb": lambda il, operand: il.sub(1, il.reg(1, "b"), il.const(1, 0), flags="nzvc"),
     "tsx": lambda il, operand: il.set_reg(2, "x", il.add(2, il.reg(2, "s"), il.const(2, 1))),
     "txs": lambda il, operand: il.set_reg(2, "s", il.sub(2, il.reg(2, "x"), il.const(2, 1))),
-    "wai": lambda il, operand: wait_for_interrupt,
+    "wai": wait_for_interrupt,
 
     "aim": lambda il, operands: il.store(1, operands[1], il.and_expr(1, operands[0], operands[1]), flags="nzv"),
     "oim": lambda il, operands: il.store(1, operands[1], il.or_expr(1, operands[0], operands[1]), flags="nzv"),
