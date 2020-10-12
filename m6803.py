@@ -31,11 +31,11 @@ class AddressingMode(Enum):
     EXTENDED = auto()  # opc $10FF
     IMMEDIATE_WORD = auto()  # opc #$10FF
     IMMEDIATE_BYTE = auto()  # opc #$FF
-    IMMEDIATE_INDEXED = auto()  # opc #$FF,$33,x    [ see AIM, OIM, EIM, TIM opcodes ]
     INDEXED = auto()  # opc #$FF,x
     RELATIVE = auto()  # opc $<xx>         where $<xx> is within a signed byte of the current PC
     DIRECT = auto()  # opc $CA           Zero Page
-    DIRECT_MEMORY = auto()  # opc #$FF,$33      Zero Page [ see AIM, OIM, EIM, TIM opcodes ]
+    DIRECT_IMMEDIATE = auto()  # opc #$FF,$33      Zero Page [ see AIM, OIM, EIM, TIM opcodes ]
+    INDEXED_IMMEDIATE = auto()  # opc #$FF,$33,x    [ see AIM, OIM, EIM, TIM opcodes ]
 
 
 ILInstructionGenerator = Callable[[LowLevelILFunction, any, AddressingMode], any]
@@ -78,7 +78,7 @@ operand_detail[AddressingMode.IMMEDIATE_BYTE] = [
     ]
 ]
 
-operand_detail[AddressingMode.IMMEDIATE_INDEXED] = [
+operand_detail[AddressingMode.INDEXED_IMMEDIATE] = [
     2,
     lambda operand: [
         InstructionTextToken(InstructionTextTokenType.TextToken, "#"),
@@ -113,7 +113,8 @@ operand_detail[AddressingMode.INDEXED] = [
 ]
 
 operand_detail[AddressingMode.RELATIVE] = [
-    1, lambda operand: [
+    1,
+    lambda operand: [
         InstructionTextToken(
             InstructionTextTokenType.PossibleAddressToken,
             "$%.2x" % operand,
@@ -122,9 +123,18 @@ operand_detail[AddressingMode.RELATIVE] = [
     ]
 ]
 
-operand_detail[AddressingMode.DIRECT] = operand_detail[AddressingMode.RELATIVE]
+operand_detail[AddressingMode.DIRECT] = [
+    1,
+    lambda operand: [
+        InstructionTextToken(
+            InstructionTextTokenType.PossibleAddressToken,
+            "$%.2x" % operand,
+            operand
+        )
+    ]
+]
 
-operand_detail[AddressingMode.DIRECT_MEMORY] = [
+operand_detail[AddressingMode.DIRECT_IMMEDIATE] = [
     2,
     lambda operand: [
         InstructionTextToken(InstructionTextTokenType.TextToken, "#"),
@@ -151,12 +161,21 @@ il_operand_detail = dict()
 il_operand_detail[AddressingMode.NONE] = lambda il, value: None
 il_operand_detail[AddressingMode.INHERENT] = lambda il, value: None
 il_operand_detail[AddressingMode.EXTENDED] = lambda il, value: il.const_pointer(2, value)
+il_operand_detail[AddressingMode.DIRECT] = lambda il, value: il.const_pointer(1, value)
 il_operand_detail[AddressingMode.IMMEDIATE_BYTE] = lambda il, value: il.const(1, value)
 il_operand_detail[AddressingMode.IMMEDIATE_WORD] = lambda il, value: il.const(2, value)
 il_operand_detail[AddressingMode.INDEXED] = lambda il, value: il.load(2, il.add(2, il.const(1, value), il.reg(2, "x")))
 il_operand_detail[AddressingMode.RELATIVE] = lambda il, value: il.const_pointer(2, value)
-il_operand_detail[AddressingMode.DIRECT] = lambda il, value: il.const_pointer(1, value)
+il_operand_detail[AddressingMode.DIRECT_IMMEDIATE] = lambda il, value: [
+    il.const(1, value >> 8),
+    il.const_pointer(1, value & 0xff)
+]
 
+
+# il_operand_detail[AddressingMode.INDEXED_IMMEDIATE] = lambda il, value: [
+#     il.const(1, value >> 8),
+#     il.load(2, il.add(2, il.const(1, value & 0xff), il.reg(2, "x")))
+# ]
 
 def get_il_operand(mode: AddressingMode):
     return il_operand_detail.get(mode, None)
@@ -185,35 +204,51 @@ def cond_branch(il, condition, dest):
     il.mark_label(false_branch)
 
 
+def jump(il, dest):
+    label = None
+    if il[dest].operation == LowLevelILOperation.LLIL_CONST:
+        label = il.get_label_for_address(Architecture[ARCHITECTURE_STRING], il[dest].constant)
+    if label is None:
+        il.append(il.jump(dest))
+    else:
+        il.append(il.goto(label))
+    return None
+
+
 il_instructions = {
-    "addd": lambda il, operand, mode: il.set_reg(2, "d", il.add(2, il.reg(2, "d"), il.load(2, operand)), flags="nzvc"),
-
-    "ldaa": lambda il, operand, mode: il.set_reg(1, "a", il.load(1, operand), flags="nzv"),
-    "ldab": lambda il, operand, mode: il.set_reg(1, "b", il.load(1, operand), flags="nzv"),
-
-    "ldd": lambda il, operand, mode: il.set_reg(2, "d", il.load(2, operand), flags="nzv"),
-
-    "lds": lambda il, operand, mode: il.set_reg(2, "s", il.load(2, operand), flags="nzv"),
-    "ldx": lambda il, operand, mode: il.set_reg(2, "x", il.load(2, operand), flags="nzv"),
-
-    "tpa": lambda il, operand, mode: il.set_reg(2, "d", il.reg(2, "ccr")),
-    "tap": lambda il, operand, mode: il.set_reg(2, "ccr", il.reg(2, "d"), flags="*"),
-
-    "std": lambda il, operand, mode: il.store(2, operand, il.reg(2, "d"), flags="nzv"),
-    "staa": lambda il, operand, mode: il.store(1, operand, il.reg(1, "a"), flags="nzv"),
-    "stab": lambda il, operand, mode: il.store(1, operand, il.reg(1, "b"), flags="nzv"),
-
-    "clra": lambda il, operand, mode: il.set_reg(1, "a", il.const(1, 0), flags="nzvc"),
-    "clrb": lambda il, operand, mode: il.set_reg(1, "b", il.const(1, 0), flags="nzvc"),
-
-    "inx": lambda il, operand, mode: il.set_reg(2, "x", il.add(2, il.reg(2, "x"), il.const(1, 1), flags="z")),
-    "cpx": lambda il, operand, mode: il.sub(2, il.reg(2, "x"), il.load(2, operand), flags="nzvc"),  # Not sub_borrow?
-
-    "bne": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NE), operand),
-    # "sei": lambda il, operand, mode: il.set_flag("i", il.const(0, 1)),
-    # "jsr": lambda il, operand: il.call(operand),
-    # "rts": lambda il, operand: il.ret(il.add(2, il.pop(2), il.const(2, 1))), # FIXME
-    "xgdx": lambda il, operand, mode: [
+    "addd": lambda il, operand: il.set_reg(2, "d", il.add(2, il.reg(2, "d"), il.load(2, operand)), flags="nzvc"),
+    "bne": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NE), operand),
+    "cli": lambda il, operand: il.set_flag("i", il.const(0, 0)),
+    "clr": lambda il, operand: il.store(1, operand, il.const(1, 0), flags="nzvc"),
+    "clra": lambda il, operand: il.set_reg(1, "a", il.const(1, 0), flags="nzvc"),
+    "clrb": lambda il, operand: il.set_reg(1, "b", il.const(1, 0), flags="nzvc"),
+    "cmpa": lambda il, operand: il.sub(1, il.reg(1, "a"), il.load(1, operand), flags="nzvc"),
+    "cmpb": lambda il, operand: il.sub(1, il.reg(1, "b"), il.load(1, operand), flags="nzvc"),
+    "cpx": lambda il, operand: il.sub(2, il.reg(2, "x"), il.load(2, operand), flags="nzvc"),
+    "dec": lambda il, operand: il.store(1, operand, il.sub(1, il.load(1, operand), il.const(1, 1)), flags="nzv"),
+    "deca": lambda il, operand: il.set_reg(1, "a", il.sub(1, il.reg(1, "a"), il.const(1, 1)), flags="nzv"),
+    "decb": lambda il, operand: il.set_reg(1, "b", il.sub(1, il.reg(1, "b"), il.const(1, 1)), flags="nzv"),
+    "inx": lambda il, operand: il.set_reg(2, "x", il.add(2, il.reg(2, "x"), il.const(1, 1), flags="z")),
+    "jsr": lambda il, operand: il.call(operand),
+    "ldaa": lambda il, operand: il.set_reg(1, "a", il.load(1, operand), flags="nzv"),
+    "ldab": lambda il, operand: il.set_reg(1, "b", il.load(1, operand), flags="nzv"),
+    "ldd": lambda il, operand: il.set_reg(2, "d", il.load(2, operand), flags="nzv"),
+    "lds": lambda il, operand: il.set_reg(2, "s", il.load(2, operand), flags="nzv"),
+    "ldx": lambda il, operand: il.set_reg(2, "x", il.load(2, operand), flags="nzv"),
+    "rts": lambda il, operand: il.ret(il.add(2, il.pop(2), il.const(2, 1))),
+    "sei": lambda il, operand: il.set_flag("i", il.const(0, 1)),
+    "staa": lambda il, operand: il.store(1, operand, il.reg(1, "a"), flags="nzv"),
+    "stab": lambda il, operand: il.store(1, operand, il.reg(1, "b"), flags="nzv"),
+    "std": lambda il, operand: il.store(2, operand, il.reg(2, "d"), flags="nzv"),
+    "tap": lambda il, operand: il.set_reg(2, "ccr", il.reg(2, "d"), flags="*"),
+    "tpa": lambda il, operand: il.set_reg(2, "d", il.reg(2, "ccr")),
+    "tst": lambda il, operand: il.sub(1, operand, il.const(1, 0), flags="nzvc"),
+    "tsta": lambda il, operand: il.sub(1, il.reg(1, "a"), il.const(1, 0), flags="nzvc"),
+    "tstb": lambda il, operand: il.sub(1, il.reg(1, "b"), il.const(1, 0), flags="nzvc"),
+    "jmp": lambda il, operand: jump(il, operand),
+    "aim": lambda il, operands: il.store(1, operands[1], il.and_expr(1, operands[0], operands[1])),
+    "oim": lambda il, operands: il.store(1, operands[1], il.or_expr(1, operands[0], operands[1])),
+    "xgdx": lambda il, operand: [
         il.set_reg(2, LLIL_TEMP(0), il.reg(2, "d")),
         il.set_reg(2, "d", il.reg(2, "x")),
         il.set_reg(2, "x", il.reg(2, LLIL_TEMP(0))),
@@ -323,33 +358,33 @@ instructions = {
     0x5e: {},
     0x5f: {"label": "clrb", "mode": AddressingMode.INHERENT},
     0x60: {"label": "neg", "mode": AddressingMode.INDEXED},
-    0x61: {"label": "aim", "mode": AddressingMode.IMMEDIATE_INDEXED},  # HD8303
-    0x62: {"label": "oim", "mode": AddressingMode.IMMEDIATE_INDEXED},  # HD8303
+    0x61: {"label": "aim", "mode": AddressingMode.INDEXED_IMMEDIATE},  # HD8303
+    0x62: {"label": "oim", "mode": AddressingMode.INDEXED_IMMEDIATE},  # HD8303
     0x63: {"label": "com", "mode": AddressingMode.INDEXED},
     0x64: {"label": "lsr", "mode": AddressingMode.INDEXED},
-    0x65: {"label": "eim", "mode": AddressingMode.IMMEDIATE_INDEXED},  # HD8303
+    0x65: {"label": "eim", "mode": AddressingMode.INDEXED_IMMEDIATE},  # HD8303
     0x66: {"label": "ror", "mode": AddressingMode.INDEXED},
     0x67: {"label": "asr", "mode": AddressingMode.INDEXED},
     0x68: {"label": "asl", "mode": AddressingMode.INDEXED},
     0x69: {"label": "rol", "mode": AddressingMode.INDEXED},
     0x6a: {"label": "dec", "mode": AddressingMode.INDEXED},
-    0x6b: {"label": "tim", "mode": AddressingMode.IMMEDIATE_INDEXED},  # HD8303
+    0x6b: {"label": "tim", "mode": AddressingMode.INDEXED_IMMEDIATE},  # HD8303
     0x6c: {"label": "inc", "mode": AddressingMode.INDEXED},
     0x6d: {"label": "tst", "mode": AddressingMode.INDEXED},
     0x6e: {"label": "jmp", "mode": AddressingMode.INDEXED},  # FIXME in IL
     0x6f: {"label": "clr", "mode": AddressingMode.INDEXED},
     0x70: {"label": "neg", "mode": AddressingMode.EXTENDED},
-    0x71: {"label": "aim", "mode": AddressingMode.DIRECT_MEMORY},  # HD8303
-    0x72: {"label": "oim", "mode": AddressingMode.DIRECT_MEMORY},  # HD8303
+    0x71: {"label": "aim", "mode": AddressingMode.DIRECT_IMMEDIATE},  # HD8303
+    0x72: {"label": "oim", "mode": AddressingMode.DIRECT_IMMEDIATE},  # HD8303
     0x73: {"label": "com", "mode": AddressingMode.EXTENDED},
     0x74: {"label": "lsr", "mode": AddressingMode.EXTENDED},
-    0x75: {"label": "eim", "mode": AddressingMode.DIRECT_MEMORY},  # HD8303
+    0x75: {"label": "eim", "mode": AddressingMode.DIRECT_IMMEDIATE},  # HD8303
     0x76: {"label": "ror", "mode": AddressingMode.EXTENDED},
     0x77: {"label": "asr", "mode": AddressingMode.EXTENDED},
     0x78: {"label": "asl", "mode": AddressingMode.EXTENDED},
     0x79: {"label": "rol", "mode": AddressingMode.EXTENDED},
     0x7a: {"label": "dec", "mode": AddressingMode.EXTENDED},
-    0x7b: {"label": "tim", "mode": AddressingMode.DIRECT_MEMORY},  # HD8303
+    0x7b: {"label": "tim", "mode": AddressingMode.DIRECT_IMMEDIATE},  # HD8303
     0x7c: {"label": "inc", "mode": AddressingMode.EXTENDED},
     0x7d: {"label": "tst", "mode": AddressingMode.EXTENDED},
     0x7e: {"label": "jmp", "mode": AddressingMode.EXTENDED},
@@ -627,6 +662,7 @@ class M6803(Architecture):
 
     def get_instruction_low_level_il(self, data, address, il: LowLevelILFunction):
         label, operand_length, operand_value, tokenizer, mode = parse_instruction(data)
+        log_debug("%.4x    %s" % (address, label))
 
         length = operand_length + 1
         il_operand_fn = get_il_operand(mode)
@@ -635,8 +671,6 @@ class M6803(Architecture):
         if il_operand_fn is None:
             log_debug("Operand: '%s' not implemented" % mode)
             return length
-
-        # log_debug("Operand: '%s'" % mode)
 
         if label in branching_instructions:  # Always Relative Addressing Mode
             operand_destination = get_destination_from_relative_operation(address, data)
@@ -651,8 +685,7 @@ class M6803(Architecture):
             il.append(il.nop())
             return length
 
-        log_debug("%.4x    %s" % (address, label))
-        il_instruction = il_instruction_fn(il, il_operand, mode)
+        il_instruction = il_instruction_fn(il, il_operand)
 
         if isinstance(il_instruction, list):
             for i in il_instruction:
