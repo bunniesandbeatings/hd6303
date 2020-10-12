@@ -12,7 +12,8 @@ Includes a default Binary View that will detect the [Roland TR 707](https://en.w
 
 - [x] Implement entire 6803 Instruction Set
 - [x] Implement LLIL methods
-- [ ] Map 707 Ram and Memory Registers
+- [x] Map 707 Ram and Memory Registers
+- [ ] Decipher the 707 code and find out just how much I got wrong
 - [ ] Hack a 707 and see if this even worked.
 - [ ] Fix documentation/naming wrt HD8303.
 
