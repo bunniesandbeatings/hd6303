@@ -217,23 +217,23 @@ def jump(il, dest):
 
 il_instructions = {
     "aba": lambda il, operand: il.set_reg(1, "a", il.add(1, il.reg(1, "a"), il.reg(1, "b")), flags="hnzvc"),
-    "abx": lambda il, operand: il.set_reg(2, "x", il.add_carry(2, il.reg(2, "x"), il.reg(1, "b"), il.flag("c"))),
-    # "adca": lambda il, operand: None,  # NI
-    # "adcb": lambda il, operand: None,  # NI
+    "abx": lambda il, operand: il.set_reg(2, "x", il.add(2, il.reg(2, "x"), il.reg(1, "b")), flags="hnzvc"),
+    "adca": lambda il, operand: il.set_reg(1, "a", il.add_carry(1, il.reg(1, "a"), operand, il.flag("c")), flags="hnzvc"),
+    "adcb": lambda il, operand: il.set_reg(1, "b", il.add_carry(1, il.reg(1, "b"), operand, il.flag("c")), flags="hnzvc"),
     "adda": lambda il, operand: il.set_reg(1, "a", il.add(1, il.reg(1, "a"), il.load(1, operand)), flags="hnzvc"),
     "addb": lambda il, operand: il.set_reg(1, "b", il.add(1, il.reg(1, "b"), il.load(1, operand)), flags="hnzvc"),
     "addd": lambda il, operand: il.set_reg(2, "d", il.add(2, il.reg(2, "d"), il.load(2, operand)), flags="nzvc"),
     "anda": lambda il, operand: il.set_reg(1, "a", il.and_expr(1, il.reg(1, "a"), operand, flags="nzvc")),
     "andb": lambda il, operand: il.set_reg(1, "a", il.and_expr(1, il.reg(1, "a"), operand, flags="nzvc")),
-    # "asl": lambda il, operand: None,  # NI
-    # "asla": lambda il, operand: None,  # NI
-    # "aslb": lambda il, operand: None,  # NI
-    # "asld": lambda il, operand: None,  # NI
-    # "asr": lambda il, operand: None,  # NI
-    # "asra": lambda il, operand: None,  # NI
-    # "asrb": lambda il, operand: None,  # NI
-    # "bcc": lambda il, operand: None,  # NI
-    # "bcs": lambda il, operand: None,  # NI
+    "asl": lambda il, operand: il.store(1, operand, il.shift_left(1, il.load(1, operand), il.const(1, 1), flags="nzvc")),
+    "asla": lambda il, operand: il.set_reg(1, "a", il.shift_left(1, il.reg(1, "a"), il.const(1, 1), flags="nzvc")),
+    "aslb": lambda il, operand: il.set_reg(1, "b", il.shift_left(1, il.reg(1, "b"), il.const(1, 1), flags="nzvc")),
+    "asld": lambda il, operand: il.set_reg(2, "d", il.shift_left(2, il.reg(2, "d"), il.const(1, 1), flags="nzvc")),
+    "asr": lambda il, operand: il.store(1, operand, il.arith_shift_right(1, il.load(1, operand), il.const(1, 1), flags="nzvc")),
+    "asra": lambda il, operand: il.set_reg(1, "a", il.arith_shift_right(1, il.reg(1, "a"), il.const(1, 1), flags="nzvc")),
+    "asrb": lambda il, operand: il.set_reg(1, "b", il.arith_shift_right(1, il.reg(1, "b"), il.const(1, 1), flags="nzvc")),
+    "bcc": lambda il, operand: cond_branch(il, il.compare_equal(1, il.flag("c"), il.const(0, 0)), operand),
+    "bcs": lambda il, operand: cond_branch(il, il.compare_equal(1, il.flag("c"), il.const(0, 1)), operand),
     "beq": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_E), operand),
     "bge": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_UGE), operand),
     "bgt": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_UGT), operand),
