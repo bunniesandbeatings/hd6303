@@ -79,6 +79,12 @@ class TR707View(BinaryView):
                 SectionSemantics.ReadOnlyDataSectionSemantics,
             )
 
+            self.add_auto_section(
+                "display_device",
+                0x1000,
+                0x1000,
+                SectionSemantics.ReadWriteDataSectionSemantics,
+            )
 
             start = struct.unpack(">H", self.read(0xfffe, 2))[0]
 

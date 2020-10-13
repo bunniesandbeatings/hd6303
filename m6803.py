@@ -203,18 +203,18 @@ def cond_branch(il, condition, dest):
     il.mark_label(false_branch)
 
 
-def jump(il, dest):
+def jump(il, operand):
     label = None
-    if il[dest].operation == LowLevelILOperation.LLIL_CONST:
+    if il[operand].operation == LowLevelILOperation.LLIL_CONST:
         label = il.get_label_for_address(Architecture[ARCHITECTURE_STRING], il[dest].constant)
     if label is None:
-        il.append(il.jump(dest))
+        il.append(il.jump(operand))
     else:
         il.append(il.goto(label))
     return None
 
 
-def rti(il, dest):
+def rti(il, operand, mode):
     il.append(il.set_reg(1, "ccr", il.pop(1), flags="*"))
     il.append(il.set_reg(1, "b", il.pop(1)))
     il.append(il.set_reg(1, "a", il.pop(1)))
@@ -233,143 +233,153 @@ def push_state(il):
     il.append(il.push(1, il.or_expr(1, il.reg(1, "ccr"), il.const(1, 0b11000000))))
 
 
-def software_interrupt(il, operand):
+def software_interrupt(il, operand, mode):
     push_state(il)
     il.append(il.set_flag("i",1))
     il.set_reg(2, "p", il.load(2, il.const_pointer(2, 0xFFFA)))
     return None
 
 
-def wait_for_interrupt(il, operand):
+def wait_for_interrupt(il, operand, mode):
     push_state(il)
     return None
 
+
+def load_or_immediate(size, il, mode, operand):
+    if mode in [AddressingMode.IMMEDIATE_BYTE, AddressingMode.IMMEDIATE_WORD]:
+        return operand
+
+    return il.load(size, operand)
+
+
 il_instructions = {
-    "aba": lambda il, operand: il.set_reg(1, "a", il.add(1, il.reg(1, "a"), il.reg(1, "b")), flags="hnzvc"),
-    "abx": lambda il, operand: il.set_reg(2, "x", il.add(2, il.reg(2, "x"), il.reg(1, "b")), flags="hnzvc"),
-    "adca": lambda il, operand: il.set_reg(1, "a", il.add_carry(1, il.reg(1, "a"), operand, il.flag("c")), flags="hnzvc"),
-    "adcb": lambda il, operand: il.set_reg(1, "b", il.add_carry(1, il.reg(1, "b"), operand, il.flag("c")), flags="hnzvc"),
-    "adda": lambda il, operand: il.set_reg(1, "a", il.add(1, il.reg(1, "a"), il.load(1, operand)), flags="hnzvc"),
-    "addb": lambda il, operand: il.set_reg(1, "b", il.add(1, il.reg(1, "b"), il.load(1, operand)), flags="hnzvc"),
-    "addd": lambda il, operand: il.set_reg(2, "d", il.add(2, il.reg(2, "d"), il.load(2, operand)), flags="nzvc"),
-    "anda": lambda il, operand: il.set_reg(1, "a", il.and_expr(1, il.reg(1, "a"), operand, flags="nzvc")),
-    "andb": lambda il, operand: il.set_reg(1, "a", il.and_expr(1, il.reg(1, "a"), operand, flags="nzvc")),
-    "asl": lambda il, operand: il.store(1, operand, il.shift_left(1, il.load(1, operand), il.const(1, 1), flags="nzvc")),
-    "asla": lambda il, operand: il.set_reg(1, "a", il.shift_left(1, il.reg(1, "a"), il.const(1, 1), flags="nzvc")),
-    "aslb": lambda il, operand: il.set_reg(1, "b", il.shift_left(1, il.reg(1, "b"), il.const(1, 1), flags="nzvc")),
-    "asld": lambda il, operand: il.set_reg(2, "d", il.shift_left(2, il.reg(2, "d"), il.const(1, 1), flags="nzvc")),
-    "asr": lambda il, operand: il.store(1, operand, il.arith_shift_right(1, il.load(1, operand), il.const(1, 1), flags="nzvc")),
-    "asra": lambda il, operand: il.set_reg(1, "a", il.arith_shift_right(1, il.reg(1, "a"), il.const(1, 1), flags="nzvc")),
-    "asrb": lambda il, operand: il.set_reg(1, "b", il.arith_shift_right(1, il.reg(1, "b"), il.const(1, 1), flags="nzvc")),
-    "bcc": lambda il, operand: cond_branch(il, il.compare_equal(1, il.flag("c"), il.const(0, 0)), operand),
-    "bcs": lambda il, operand: cond_branch(il, il.compare_equal(1, il.flag("c"), il.const(0, 1)), operand),
-    "beq": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_E), operand),
-    "bge": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_UGE), operand),
-    "bgt": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_UGT), operand),
-    "bhi": lambda il, operand: cond_branch(il, il.compare_equal(0, il.or_expr(0, il.flag("c"), il.flag("z")), il.const(0, 0)), operand),
-    "bita": lambda il, operand: il.and_expr(1, il.reg(1, "a"), operand, flags="nzv"),
-    "bitb": lambda il, operand: il.and_expr(1, il.reg(1, "b"), operand, flags="nzv"),
-    "ble": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_ULE), operand),
-    "bls": lambda il, operand: cond_branch(il, il.compare_equal(0, il.or_expr(0, il.flag("c"), il.flag("z")), il.const(0, 1)), operand),
-    "blt": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_ULT), operand),
-    "bmi": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NEG), operand),
-    "bne": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NE), operand),
-    "bpl": lambda il, operand: cond_branch(il, il.not_expr(0, il.flag_condition(LowLevelILFlagCondition.LLFC_NEG)), operand),
-    "bra": lambda il, operand: jump(il, operand),
-    "brn": lambda il, operand: il.nop(),
-    "bsr": lambda il, operand: il.call(operand),  # Essentially, a Relative addressing version of JSR.
-    "bvc": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NO), operand),
-    "bvs": lambda il, operand: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_O), operand),
-    "cba": lambda il, operand: il.sub(1, il.reg(1, "a"), il.reg(1, "b"), flags="nzvc"),
-    "clc": lambda il, operand: il.set_flag("c", il.const(0, 0)),
-    "cli": lambda il, operand: il.set_flag("i", il.const(0, 0)),
-    "clr": lambda il, operand: il.store(1, operand, il.const(1, 0), flags="nzvc"),
-    "clra": lambda il, operand: il.set_reg(1, "a", il.const(1, 0), flags="nzvc"),
-    "clrb": lambda il, operand: il.set_reg(1, "b", il.const(1, 0), flags="nzvc"),
-    "clv": lambda il, operand: il.set_flag("v", il.const(0, 0)),
-    "cmpa": lambda il, operand: il.sub(1, il.reg(1, "a"), il.load(1, operand), flags="nzvc"),
-    "cmpb": lambda il, operand: il.sub(1, il.reg(1, "b"), il.load(1, operand), flags="nzvc"),
-    "com": lambda il, operand: il.store(1, operand, il.not_expr(1, il.load(1, operand)), flags="nzvc"),
-    "coma": lambda il, operand: il.set_reg(1, "a", il.not_expr(1, il.reg(1, "a")), flags="nzvc"),
-    "comb": lambda il, operand: il.set_reg(1, "b", il.not_expr(1, il.reg(1, "b")), flags="nzvc"),
-    "cpx": lambda il, operand: il.sub(2, il.reg(2, "x"), il.load(2, operand), flags="nzvc"),
-    "daa": lambda il, operand: il.set_reg(1, "a", il.intrinsic([], "bcd_adjust", [il.reg(1, "a")]), flags="nzc"),
-    "dec": lambda il, operand: il.store(1, operand, il.sub(1, il.load(1, operand), il.const(1, 1)), flags="nzv"),
-    "deca": lambda il, operand: il.set_reg(1, "a", il.sub(1, il.reg(1, "a"), il.const(1, 1)), flags="nzv"),
-    "decb": lambda il, operand: il.set_reg(1, "b", il.sub(1, il.reg(1, "b"), il.const(1, 1)), flags="nzv"),
-    "des": lambda il, operand: il.set_reg(2, "s", il.sub(2, il.reg(2, "s"), il.const(1, 1))),
-    "dex": lambda il, operand: il.set_reg(2, "x", il.sub(2, il.reg(2, "x"), il.const(1, 1)), flags="z"),
-    "eora": lambda il, operand: il.set_reg(1, "a", il.xor_expr(1, il.reg(1, "a"), operand), flags="nzv"),
-    "eorb": lambda il, operand: il.set_reg(1, "b", il.xor_expr(1, il.reg(1, "b"), operand), flags="nzv"),
-    "inc": lambda il, operand: il.store(1, operand, il.add(1, il.load(1, operand), il.const(1, 1)), flags="nzv"),
-    "inca": lambda il, operand: il.set_reg(1, "a", il.add(1, il.reg(1, "a"), il.const(1, 1)), flags="nzv"),
-    "incb": lambda il, operand: il.set_reg(1, "b", il.add(1, il.reg(1, "b"), il.const(1, 1)), flags="nzv"),
-    "ins": lambda il, operand: il.set_reg(2, "s", il.add(2, il.reg(2, "s"), il.const(1, 1))),
-    "inx": lambda il, operand: il.set_reg(2, "x", il.add(2, il.reg(2, "x"), il.const(1, 1), flags="z")),
-    "jmp": lambda il, operand: jump(il, operand),
-    "jsr": lambda il, operand: il.call(operand),
-    "ldaa": lambda il, operand: il.set_reg(1, "a", il.load(1, operand), flags="nzv"),
-    "ldab": lambda il, operand: il.set_reg(1, "b", il.load(1, operand), flags="nzv"),
-    "ldd": lambda il, operand: il.set_reg(2, "d", il.load(2, operand), flags="nzv"),
-    "lds": lambda il, operand: il.set_reg(2, "s", il.load(2, operand), flags="nzv"),
-    "ldx": lambda il, operand: il.set_reg(2, "x", il.load(2, operand), flags="nzv"),
-    "lsr": lambda il, operand: il.store(1, operand, il.logical_shift_right(1, il.load(1, operand), il.const(1, 1), flags="nzvc")),
-    "lsra": lambda il, operand: il.set_reg(1, "a", il.logical_shift_right(1, il.reg(1, "a"), il.const(1, 1), flags="nzvc")),
-    "lsrb": lambda il, operand: il.set_reg(1, "b", il.logical_shift_right(1, il.reg(1, "b"), il.const(1, 1), flags="nzvc")),
-    "lsrd": lambda il, operand: il.set_reg(2, "d", il.logical_shift_right(2, il.reg(2, "d"), il.const(1, 1), flags="nzvc")),
-    "mul": lambda il, operand: il.set_reg(2, "d", il.mult(2, il.reg(1, "a"), il.reg(1, "b")), flags="c"),
-    "neg": lambda il, operand: il.store(1, operand, il.neg_expr(1, il.load(1, operand)), flags="nzvc"),
-    "nega": lambda il, operand: il.set_reg(1, "a", il.neg_expr(1, il.reg(1, "a")), flags="nzvc"),
-    "negb": lambda il, operand: il.set_reg(1, "b", il.neg_expr(1, il.reg(1, "b")), flags="nzvc"),
-    "nop": lambda il, operand: il.nop(),
-    "oraa": lambda il, operand: il.set_reg(1, "a", il.or_expr(1, il.reg(1, "a"), operand, flags="nzv")),
-    "orab": lambda il, operand: il.set_reg(1, "b", il.or_expr(1, il.reg(1, "b"), operand, flags="nzv")),
-    "psha": lambda il, operand: il.push(1, il.reg(1, "a")),
-    "pshb": lambda il, operand: il.push(1, il.reg(1, "b")),
-    "pshx": lambda il, operand: il.push(2, il.reg(2, "x")),
-    "pula": lambda il, operand: il.set_reg(1, "a", il.pop(1)),
-    "pulb": lambda il, operand: il.set_reg(1, "b", il.pop(1)),
-    "pulx": lambda il, operand: il.set_reg(2, "x", il.pop(2)),
-    "rol": lambda il, operand: il.store(1, operand, il.rotate_left_carry(1, il.load(1, operand), il.const(1, 1), il.flag("c")), flags="nzvc"),
-    "rola": lambda il, operand: il.set_reg(1, "a", il.rotate_left_carry(1, il.reg(1, "a"), il.const(1, 1), il.flag("c")), flags="nzvc"),
-    "rolb": lambda il, operand: il.set_reg(1, "b", il.rotate_left_carry(1, il.reg(1, "b"), il.const(1, 1), il.flag("c")), flags="nzvc"),
-    "ror": lambda il, operand: il.store(1, operand, il.rotate_right_carry(1, il.load(1, operand), il.const(1, 1), il.flag("c")), flags="nzvc"),
-    "rora": lambda il, operand: il.set_reg(1, "a", il.rotate_right_carry(1, il.reg(1, "a"), il.const(1, 1), il.flag("c")), flags="nzvc"),
-    "rorb": lambda il, operand: il.set_reg(1, "b", il.rotate_right_carry(1, il.reg(1, "b"), il.const(1, 1), il.flag("c")), flags="nzvc"),
+    "aba": lambda il, operand, mode: il.set_reg(1, "a", il.add(1, il.reg(1, "a"), il.reg(1, "b")), flags="hnzvc"),
+    "abx": lambda il, operand, mode: il.set_reg(2, "x", il.add(2, il.reg(2, "x"), il.reg(1, "b")), flags="hnzvc"),
+    "adca": lambda il, operand, mode: il.set_reg(1, "a", il.add_carry(1, il.reg(1, "a"), operand, il.flag("c")), flags="hnzvc"),
+    "adcb": lambda il, operand, mode: il.set_reg(1, "b", il.add_carry(1, il.reg(1, "b"), operand, il.flag("c")), flags="hnzvc"),
+    "adda": lambda il, operand, mode: il.set_reg(1, "a", il.add(1, il.reg(1, "a"), il.load(1, operand)), flags="hnzvc"),
+    "addb": lambda il, operand, mode: il.set_reg(1, "b", il.add(1, il.reg(1, "b"), il.load(1, operand)), flags="hnzvc"),
+    "addd": lambda il, operand, mode: il.set_reg(2, "d", il.add(2, il.reg(2, "d"), il.load(2, operand)), flags="nzvc"),
+    "anda": lambda il, operand, mode: il.set_reg(1, "a", il.and_expr(1, il.reg(1, "a"), operand, flags="nzvc")),
+    "andb": lambda il, operand, mode: il.set_reg(1, "a", il.and_expr(1, il.reg(1, "a"), operand, flags="nzvc")),
+    "asl": lambda il, operand, mode: il.store(1, operand, il.shift_left(1, il.load(1, operand), il.const(1, 1), flags="nzvc")),
+    "asla": lambda il, operand, mode: il.set_reg(1, "a", il.shift_left(1, il.reg(1, "a"), il.const(1, 1), flags="nzvc")),
+    "aslb": lambda il, operand, mode: il.set_reg(1, "b", il.shift_left(1, il.reg(1, "b"), il.const(1, 1), flags="nzvc")),
+    "asld": lambda il, operand, mode: il.set_reg(2, "d", il.shift_left(2, il.reg(2, "d"), il.const(1, 1), flags="nzvc")),
+    "asr": lambda il, operand, mode: il.store(1, operand, il.arith_shift_right(1, il.load(1, operand), il.const(1, 1), flags="nzvc")),
+    "asra": lambda il, operand, mode: il.set_reg(1, "a", il.arith_shift_right(1, il.reg(1, "a"), il.const(1, 1), flags="nzvc")),
+    "asrb": lambda il, operand, mode: il.set_reg(1, "b", il.arith_shift_right(1, il.reg(1, "b"), il.const(1, 1), flags="nzvc")),
+    "bcc": lambda il, operand, mode: cond_branch(il, il.compare_equal(1, il.flag("c"), il.const(0, 0)), operand),
+    "bcs": lambda il, operand, mode: cond_branch(il, il.compare_equal(1, il.flag("c"), il.const(0, 1)), operand),
+    "beq": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_E), operand),
+    "bge": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_UGE), operand),
+    "bgt": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_UGT), operand),
+    "bhi": lambda il, operand, mode: cond_branch(il, il.compare_equal(0, il.or_expr(0, il.flag("c"), il.flag("z")), il.const(0, 0)), operand),
+    "bita": lambda il, operand, mode: il.and_expr(1, il.reg(1, "a"), operand, flags="nzv"),
+    "bitb": lambda il, operand, mode: il.and_expr(1, il.reg(1, "b"), operand, flags="nzv"),
+    "ble": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_ULE), operand),
+    "bls": lambda il, operand, mode: cond_branch(il, il.compare_equal(0, il.or_expr(0, il.flag("c"), il.flag("z")), il.const(0, 1)), operand),
+    "blt": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_ULT), operand),
+    "bmi": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NEG), operand),
+    "bne": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NE), operand),
+    "bpl": lambda il, operand, mode: cond_branch(il, il.not_expr(0, il.flag_condition(LowLevelILFlagCondition.LLFC_NEG)), operand),
+    "bra": lambda il, operand, mode: jump(il, operand),
+    "brn": lambda il, operand, mode: il.nop(),
+    "bsr": lambda il, operand, mode: il.call(operand),  # Essentially, a Relative addressing version of JSR.
+    "bvc": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_NO), operand),
+    "bvs": lambda il, operand, mode: cond_branch(il, il.flag_condition(LowLevelILFlagCondition.LLFC_O), operand),
+    "cba": lambda il, operand, mode: il.sub(1, il.reg(1, "a"), il.reg(1, "b"), flags="nzvc"),
+    "clc": lambda il, operand, mode: il.set_flag("c", il.const(0, 0)),
+    "cli": lambda il, operand, mode: il.set_flag("i", il.const(0, 0)),
+    "clr": lambda il, operand, mode: il.store(1, operand, il.const(1, 0), flags="nzvc"),
+    "clra": lambda il, operand, mode: il.set_reg(1, "a", il.const(1, 0), flags="nzvc"),
+    "clrb": lambda il, operand, mode: il.set_reg(1, "b", il.const(1, 0), flags="nzvc"),
+    "clv": lambda il, operand, mode: il.set_flag("v", il.const(0, 0)),
+    "cmpa": lambda il, operand, mode: il.sub(1, il.reg(1, "a"), il.load(1, operand), flags="nzvc"),
+    "cmpb": lambda il, operand, mode: il.sub(1, il.reg(1, "b"), il.load(1, operand), flags="nzvc"),
+    "com": lambda il, operand, mode: il.store(1, operand, il.not_expr(1, il.load(1, operand)), flags="nzvc"),
+    "coma": lambda il, operand, mode: il.set_reg(1, "a", il.not_expr(1, il.reg(1, "a")), flags="nzvc"),
+    "comb": lambda il, operand, mode: il.set_reg(1, "b", il.not_expr(1, il.reg(1, "b")), flags="nzvc"),
+    "cpx": lambda il, operand, mode: il.sub(2, il.reg(2, "x"), il.load(2, operand), flags="nzvc"),
+    "daa": lambda il, operand, mode: il.set_reg(1, "a", il.intrinsic([], "bcd_adjust", [il.reg(1, "a")]), flags="nzc"),
+    "dec": lambda il, operand, mode: il.store(1, operand, il.sub(1, il.load(1, operand), il.const(1, 1)), flags="nzv"),
+    "deca": lambda il, operand, mode: il.set_reg(1, "a", il.sub(1, il.reg(1, "a"), il.const(1, 1)), flags="nzv"),
+    "decb": lambda il, operand, mode: il.set_reg(1, "b", il.sub(1, il.reg(1, "b"), il.const(1, 1)), flags="nzv"),
+    "des": lambda il, operand, mode: il.set_reg(2, "s", il.sub(2, il.reg(2, "s"), il.const(1, 1))),
+    "dex": lambda il, operand, mode: il.set_reg(2, "x", il.sub(2, il.reg(2, "x"), il.const(1, 1)), flags="z"),
+    "eora": lambda il, operand, mode: il.set_reg(1, "a", il.xor_expr(1, il.reg(1, "a"), operand), flags="nzv"),
+    "eorb": lambda il, operand, mode: il.set_reg(1, "b", il.xor_expr(1, il.reg(1, "b"), operand), flags="nzv"),
+    "inc": lambda il, operand, mode: il.store(1, operand, il.add(1, il.load(1, operand), il.const(1, 1)), flags="nzv"),
+    "inca": lambda il, operand, mode: il.set_reg(1, "a", il.add(1, il.reg(1, "a"), il.const(1, 1)), flags="nzv"),
+    "incb": lambda il, operand, mode: il.set_reg(1, "b", il.add(1, il.reg(1, "b"), il.const(1, 1)), flags="nzv"),
+    "ins": lambda il, operand, mode: il.set_reg(2, "s", il.add(2, il.reg(2, "s"), il.const(1, 1))),
+    "inx": lambda il, operand, mode: il.set_reg(2, "x", il.add(2, il.reg(2, "x"), il.const(1, 1), flags="z")),
+    "jmp": lambda il, operand, mode: jump(il, operand),
+    "jsr": lambda il, operand, mode: il.call(operand),
+
+    "ldaa": lambda il, operand, mode: il.set_reg(1, "a", load_or_immediate(1, il, mode, operand), flags="nzv"),
+    "ldab": lambda il, operand, mode: il.set_reg(1, "b", load_or_immediate(1, il, mode, operand), flags="nzv"),
+
+    "ldd": lambda il, operand, mode: il.set_reg(2, "d", il.load(2, operand), flags="nzv"),
+    "lds": lambda il, operand, mode: il.set_reg(2, "s", il.load(2, operand), flags="nzv"),
+    "ldx": lambda il, operand, mode: il.set_reg(2, "x", il.load(2, operand), flags="nzv"),
+    "lsr": lambda il, operand, mode: il.store(1, operand, il.logical_shift_right(1, il.load(1, operand), il.const(1, 1), flags="nzvc")),
+    "lsra": lambda il, operand, mode: il.set_reg(1, "a", il.logical_shift_right(1, il.reg(1, "a"), il.const(1, 1), flags="nzvc")),
+    "lsrb": lambda il, operand, mode: il.set_reg(1, "b", il.logical_shift_right(1, il.reg(1, "b"), il.const(1, 1), flags="nzvc")),
+    "lsrd": lambda il, operand, mode: il.set_reg(2, "d", il.logical_shift_right(2, il.reg(2, "d"), il.const(1, 1), flags="nzvc")),
+    "mul": lambda il, operand, mode: il.set_reg(2, "d", il.mult(2, il.reg(1, "a"), il.reg(1, "b")), flags="c"),
+    "neg": lambda il, operand, mode: il.store(1, operand, il.neg_expr(1, il.load(1, operand)), flags="nzvc"),
+    "nega": lambda il, operand, mode: il.set_reg(1, "a", il.neg_expr(1, il.reg(1, "a")), flags="nzvc"),
+    "negb": lambda il, operand, mode: il.set_reg(1, "b", il.neg_expr(1, il.reg(1, "b")), flags="nzvc"),
+    "nop": lambda il, operand, mode: il.nop(),
+    "oraa": lambda il, operand, mode: il.set_reg(1, "a", il.or_expr(1, il.reg(1, "a"), operand, flags="nzv")),
+    "orab": lambda il, operand, mode: il.set_reg(1, "b", il.or_expr(1, il.reg(1, "b"), operand, flags="nzv")),
+    "psha": lambda il, operand, mode: il.push(1, il.reg(1, "a")),
+    "pshb": lambda il, operand, mode: il.push(1, il.reg(1, "b")),
+    "pshx": lambda il, operand, mode: il.push(2, il.reg(2, "x")),
+    "pula": lambda il, operand, mode: il.set_reg(1, "a", il.pop(1)),
+    "pulb": lambda il, operand, mode: il.set_reg(1, "b", il.pop(1)),
+    "pulx": lambda il, operand, mode: il.set_reg(2, "x", il.pop(2)),
+    "rol": lambda il, operand, mode: il.store(1, operand, il.rotate_left_carry(1, il.load(1, operand), il.const(1, 1), il.flag("c")), flags="nzvc"),
+    "rola": lambda il, operand, mode: il.set_reg(1, "a", il.rotate_left_carry(1, il.reg(1, "a"), il.const(1, 1), il.flag("c")), flags="nzvc"),
+    "rolb": lambda il, operand, mode: il.set_reg(1, "b", il.rotate_left_carry(1, il.reg(1, "b"), il.const(1, 1), il.flag("c")), flags="nzvc"),
+    "ror": lambda il, operand, mode: il.store(1, operand, il.rotate_right_carry(1, il.load(1, operand), il.const(1, 1), il.flag("c")), flags="nzvc"),
+    "rora": lambda il, operand, mode: il.set_reg(1, "a", il.rotate_right_carry(1, il.reg(1, "a"), il.const(1, 1), il.flag("c")), flags="nzvc"),
+    "rorb": lambda il, operand, mode: il.set_reg(1, "b", il.rotate_right_carry(1, il.reg(1, "b"), il.const(1, 1), il.flag("c")), flags="nzvc"),
     "rti": rti, # What flags do we need to fix.
-    "rts": lambda il, operand: il.ret(il.add(2, il.pop(2), il.const(2, 1))),
-    "sba": lambda il, operand: il.set_reg(1, "a", il.sub(1, il.reg(1, "a"), il.reg(1, "b")), flags="nzvc"),
-    "sbca": lambda il, operand: il.set_reg(1, "a", il.sub_borrow(1, il.reg(1, "a"), il.load(1, operand), il.flag("c")), flags="nzvc"),
-    "sbcb": lambda il, operand: il.set_reg(1, "a", il.sub_borrow(1, il.reg(1, "a"), il.load(1, operand), il.flag("c")), flags="nzvc"),
-    "sec": lambda il, operand: il.set_flag("c", il.const(0, 1)),
-    "sei": lambda il, operand: il.set_flag("i", il.const(0, 1)),
-    "sev": lambda il, operand: il.set_flag("v", il.const(0, 1)),
-    "slp": lambda il, operand: il.intrinsic([], "sleep", []),
-    "staa": lambda il, operand: il.store(1, operand, il.reg(1, "a"), flags="nzv"),
-    "stab": lambda il, operand: il.store(1, operand, il.reg(1, "b"), flags="nzv"),
-    "std": lambda il, operand: il.store(2, operand, il.reg(2, "d"), flags="nzv"),
-    "sts": lambda il, operand: il.store(2, operand, il.reg(2, "s"), flags="nzv"),
-    "stx": lambda il, operand: il.store(2, operand, il.reg(2, "x"), flags="nzv"),
-    "suba": lambda il, operand: il.set_reg(1, "a", il.sub(1, il.reg(1, "a"), operand), "nzvc"),
-    "subb": lambda il, operand: il.set_reg(1, "b", il.sub(1, il.reg(1, "b"), operand), "nzvc"),
-    "subd": lambda il, operand: il.set_reg(2, "d", il.sub(2, il.reg(2, "d"), operand), "nzvc"),
+    "rts": lambda il, operand, mode: il.ret(il.add(2, il.pop(2), il.const(2, 1))),
+    "sba": lambda il, operand, mode: il.set_reg(1, "a", il.sub(1, il.reg(1, "a"), il.reg(1, "b")), flags="nzvc"),
+    "sbca": lambda il, operand, mode: il.set_reg(1, "a", il.sub_borrow(1, il.reg(1, "a"), il.load(1, operand), il.flag("c")), flags="nzvc"),
+    "sbcb": lambda il, operand, mode: il.set_reg(1, "a", il.sub_borrow(1, il.reg(1, "a"), il.load(1, operand), il.flag("c")), flags="nzvc"),
+    "sec": lambda il, operand, mode: il.set_flag("c", il.const(0, 1)),
+    "sei": lambda il, operand, mode: il.set_flag("i", il.const(0, 1)),
+    "sev": lambda il, operand, mode: il.set_flag("v", il.const(0, 1)),
+    "slp": lambda il, operand, mode: il.intrinsic([], "sleep", []),
+    "staa": lambda il, operand, mode: il.store(1, operand, il.reg(1, "a"), flags="nzv"),
+    "stab": lambda il, operand, mode: il.store(1, operand, il.reg(1, "b"), flags="nzv"),
+    "std": lambda il, operand, mode: il.store(2, operand, il.reg(2, "d"), flags="nzv"),
+    "sts": lambda il, operand, mode: il.store(2, operand, il.reg(2, "s"), flags="nzv"),
+    "stx": lambda il, operand, mode: il.store(2, operand, il.reg(2, "x"), flags="nzv"),
+    "suba": lambda il, operand, mode: il.set_reg(1, "a", il.sub(1, il.reg(1, "a"), operand), "nzvc"),
+    "subb": lambda il, operand, mode: il.set_reg(1, "b", il.sub(1, il.reg(1, "b"), operand), "nzvc"),
+    "subd": lambda il, operand, mode: il.set_reg(2, "d", il.sub(2, il.reg(2, "d"), operand), "nzvc"),
     "swi": software_interrupt,
-    "tab": lambda il, operand: il.set_reg(1, "b", il.reg(1, "a"), flags="nzv"),
-    "tap": lambda il, operand: il.set_reg(2, "ccr", il.reg(2, "d"), flags="*"),
-    "tba": lambda il, operand: il.set_reg(1, "a", il.and_expr(1, il.reg(1, "b"), il.const(1, 0b11000000)), flags="nzv"),
-    "tpa": lambda il, operand: il.set_reg(1, "a", il.reg(1, "ccr")),
-    "tst": lambda il, operand: il.sub(1, operand, il.const(1, 0), flags="nzvc"),
-    "tsta": lambda il, operand: il.sub(1, il.reg(1, "a"), il.const(1, 0), flags="nzvc"),
-    "tstb": lambda il, operand: il.sub(1, il.reg(1, "b"), il.const(1, 0), flags="nzvc"),
-    "tsx": lambda il, operand: il.set_reg(2, "x", il.add(2, il.reg(2, "s"), il.const(2, 1))),
-    "txs": lambda il, operand: il.set_reg(2, "s", il.sub(2, il.reg(2, "x"), il.const(2, 1))),
+    "tab": lambda il, operand, mode: il.set_reg(1, "b", il.reg(1, "a"), flags="nzv"),
+    "tap": lambda il, operand, mode: il.set_reg(2, "ccr", il.reg(2, "d"), flags="*"),
+    "tba": lambda il, operand, mode: il.set_reg(1, "a", il.and_expr(1, il.reg(1, "b"), il.const(1, 0b11000000)), flags="nzv"),
+    "tpa": lambda il, operand, mode: il.set_reg(1, "a", il.reg(1, "ccr")),
+    "tst": lambda il, operand, mode: il.sub(1, operand, il.const(1, 0), flags="nzvc"),
+    "tsta": lambda il, operand, mode: il.sub(1, il.reg(1, "a"), il.const(1, 0), flags="nzvc"),
+    "tstb": lambda il, operand, mode: il.sub(1, il.reg(1, "b"), il.const(1, 0), flags="nzvc"),
+    "tsx": lambda il, operand, mode: il.set_reg(2, "x", il.add(2, il.reg(2, "s"), il.const(2, 1))),
+    "txs": lambda il, operand, mode: il.set_reg(2, "s", il.sub(2, il.reg(2, "x"), il.const(2, 1))),
     "wai": wait_for_interrupt,
 
-    "aim": lambda il, operands: il.store(1, operands[1], il.and_expr(1, operands[0], operands[1]), flags="nzv"),
-    "oim": lambda il, operands: il.store(1, operands[1], il.or_expr(1, operands[0], operands[1]), flags="nzv"),
-    "eim": lambda il, operands: il.store(1, operands[1], il.xor_expr(1, operands[0], operands[1]), flags="nzv"),
-    "tim": lambda il, operands: il.and_expr(1, operands[0], operands[1], flags="nzv"),
-    "xgdx": lambda il, operand: [
+    "aim": lambda il, operands, mode: il.store(1, operands[1], il.and_expr(1, operands[0], operands[1]), flags="nzv"),
+    "oim": lambda il, operands, mode: il.store(1, operands[1], il.or_expr(1, operands[0], operands[1]), flags="nzv"),
+    "eim": lambda il, operands, mode: il.store(1, operands[1], il.xor_expr(1, operands[0], operands[1]), flags="nzv"),
+    "tim": lambda il, operands, mode: il.and_expr(1, operands[0], operands[1], flags="nzv"),
+    "xgdx": lambda il, operand, mode: [
         il.set_reg(2, LLIL_TEMP(0), il.reg(2, "d")),
         il.set_reg(2, "d", il.reg(2, "x")),
         il.set_reg(2, "x", il.reg(2, LLIL_TEMP(0))),
@@ -796,9 +806,8 @@ class M6803(Architecture):
         log_debug("%.4x    %s" % (address, label))
 
         length = operand_length + 1
-        il_operand_fn = get_il_operand(mode)
 
-        # FIXME: remove after full impl.
+        il_operand_fn = get_il_operand(mode)
         if il_operand_fn is None:
             log_debug("Operand: '%s' not implemented" % mode)
             return length
@@ -810,13 +819,12 @@ class M6803(Architecture):
             il_operand = il_operand_fn(il, operand_value)
 
         il_instruction_fn = get_il_instruction(label)
-        # FIXME: remove after full impl.
         if il_instruction_fn is None:
             log_debug("Instr: '%s' not implemented" % label)
             il.append(il.nop())
             return length
 
-        il_instruction = il_instruction_fn(il, il_operand)
+        il_instruction = il_instruction_fn(il, il_operand, mode)
 
         if isinstance(il_instruction, list):
             for i in il_instruction:
