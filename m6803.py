@@ -16,9 +16,10 @@ from enum import Enum, auto
 ARCHITECTURE_STRING = 'm6803'
 
 try:
-    import pydevd_pycharm
-
-    pydevd_pycharm.settrace('localhost', port=33333, stdoutToServer=True, stderrToServer=True, suspend=False)
+    import os
+    if os.environ['PYDEV_ENV'] == "development":
+        import pydevd_pycharm
+        pydevd_pycharm.settrace('localhost', port=33333, stdoutToServer=True, stderrToServer=True, suspend=False)
 except:
     pass
 
