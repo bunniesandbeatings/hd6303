@@ -13,7 +13,7 @@ from binaryninja.lowlevelil import LowLevelILFunction, LowLevelILLabel, LLIL_TEM
 from typing import (Callable, Tuple, Optional)
 from enum import Enum, auto
 
-ARCHITECTURE_STRING = 'm6803'
+ARCHITECTURE_STRING = 'HD6303'
 
 try:
     import os
@@ -692,7 +692,7 @@ def get_destination_from_relative_operation(address, data):
     return destination
 
 
-class M6803(Architecture):
+class HD6303(Architecture):
     name = ARCHITECTURE_STRING
     address_size = 2
     default_int_size = 1

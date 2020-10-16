@@ -8,6 +8,8 @@ from binaryninja.architecture import Architecture
 
 import traceback
 
+from .hd6303 import ARCHITECTURE_STRING
+
 START_OF_BINARY = 0x0000
 START_OF_PROGRAM_ROM = 0x8000
 START_OF_PROGRAM_ROM_MIRROR = 0xc000
@@ -21,7 +23,7 @@ class TR707View(BinaryView):
 
     def __init__(self, data):
         BinaryView.__init__(self, parent_view=data, file_metadata=data.file)
-        self.platform = Architecture['m6803'].standalone_platform
+        self.platform = Architecture[ARCHITECTURE_STRING].standalone_platform
 
     @classmethod
     def is_valid_for_data(self, data):

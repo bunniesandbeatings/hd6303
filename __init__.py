@@ -1,5 +1,5 @@
-from .m6803 import M6803
+from .hd6303 import HD6303
 from .tr707_view import TR707View
 
-M6803.register()
+HD6303.register()
 TR707View.register()
