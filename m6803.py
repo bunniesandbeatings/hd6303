@@ -833,6 +833,15 @@ class M6803(Architecture):
 
         return length
 
+    # def get_instruction_low_level_il(self, data, address, il: LowLevelILFunction):
+    #     label, operand_length, operand_value, tokenizer, mode = parse_instruction(data)
+    #     log_debug("%.4x    %s" % (address, label))
+    #
+    #     length = operand_length + 1
+    #
+    #
+    #     return length
+
     flags_required_for_flag_condition = {
         LowLevelILFlagCondition.LLFC_NEG: ["n"],
         LowLevelILFlagCondition.LLFC_POS: ["n"],

@@ -167,6 +167,14 @@ class TR707View(BinaryView):
             self.define_auto_symbol(Symbol(SymbolType.DataSymbol, 0x0012, "USART_RX", full_name="USART RX Data Register"))
             self.define_auto_symbol(Symbol(SymbolType.DataSymbol, 0x0013, "USART_TX", full_name="USART TX Data Register"))
 
+            # --- drum triggers
+
+            self.define_auto_symbol(Symbol(SymbolType.DataSymbol, 0x6000, "DRUM_START", full_name="Start of drum trigger adressing"))
+
+            for i in range(0x6001, 0x6400):
+                self.define_auto_symbol(
+                    Symbol(SymbolType.DataSymbol, i, "DRUM_TRIG_{:010b}".format(i & 0x3ff)))
+
             return True
 
         except:
